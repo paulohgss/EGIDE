@@ -41,6 +41,36 @@ export const AppState = {
   set currentSessionId(value) { this._currentSessionId = value; },
 };
 
+// <<< ADICIONADO >>>
+const SESSION_ID_STORAGE_KEY = 'egideCurrentSessionId';
+
+// Estado inicial da aplicação
+export let AppState = {
+  currentLanguage: 'pt',
+  currentTheme: 'light',
+  isLoading: false,
+  logs: [], // Array para armazenar logs individuais { bot: string, texto: string }
+  filtroAtual: 'ALL',
+  historicoConversa: "", // Armazena todo o histórico como string para fácil envio
+  ultimaMensagemSupervisor: "",
+  aguardandoRespostaUsuario: false,
+  currentSessionId: null, // <<< INICIALIZADO COMO NULL >>>
+};
+
+/**
+ * Reseta o estado relacionado a um caso específico.
+ */
+export function resetCaseState() {
+  AppState.logs = [];
+  AppState.historicoConversa = "";
+  AppState.ultimaMensagemSupervisor = "";
+  AppState.aguardandoRespostaUsuario = false;
+  AppState.currentSessionId = null; // Garante que começamos sem ID de sessão
+  // <<< ADICIONADO >>>
+  localStorage.removeItem(SESSION_ID_STORAGE_KEY); // Limpa o ID salvo ao resetar
+  console.log("Estado do caso resetado e session_id removido do localStorage.");
+}
+
 // Função para resetar partes do estado para um novo caso
 export function resetCaseState() {
   AppState.aguardandoRespostaUsuario = false;

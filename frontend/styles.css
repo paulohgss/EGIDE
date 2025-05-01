@@ -1,0 +1,151 @@
+body {
+  font-family: 'Arial', sans-serif;
+  transition: background-color 0.3s, color 0.3s;
+  background-color: #f8f9fa; /* Cor clara padrão */
+  color: #212529; /* Cor texto padrão */
+}
+
+/* --- Tema Escuro --- */
+.dark-theme {
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+}
+
+.dark-theme .card {
+  background-color: #2c2c2c;
+  border-color: #444;
+}
+
+.dark-theme .form-control,
+.dark-theme select.form-select {
+  background-color: #333;
+  color: #e0e0e0;
+  border-color: #555;
+}
+
+.dark-theme .form-control::placeholder {
+  color: #aaa; /* Melhorar visibilidade do placeholder no tema escuro */
+}
+
+
+.dark-theme .btn-outline-primary {
+  color: #a0c4ff; /* Azul claro para melhor contraste */
+  border-color: #a0c4ff;
+}
+
+.dark-theme .btn-outline-primary:hover {
+  background-color: #a0c4ff;
+  color: #1a1a1a;
+}
+
+.dark-theme .btn-outline-secondary {
+    color: #ccc;
+    border-color: #ccc;
+}
+.dark-theme .btn-outline-secondary:hover {
+    background-color: #ccc;
+    color: #1a1a1a;
+}
+
+
+.dark-theme details summary {
+  background-color: #444;
+}
+
+.dark-theme details pre {
+  background-color: #333;
+  border-color: #555;
+  color: #e0e0e0; /* Garantir que o texto pre seja legível */
+}
+
+.dark-theme #conversaInterna {
+  color: #e0e0e0;
+}
+
+/* --- Componentes Gerais --- */
+.error-message {
+  color: #dc3545;
+  font-size: 0.9em;
+  /* visibilidade controlada por JS/Bootstrap via d-none */
+  margin-top: 0.5rem;
+}
+
+.loading-spinner {
+  /* visibilidade controlada por JS/Bootstrap via d-none */
+  margin-left: 0.5rem;
+}
+
+.card {
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+details {
+  margin-bottom: 0.5rem;
+}
+
+details summary {
+  cursor: pointer;
+  font-weight: bold;
+  padding: 0.5rem;
+  background-color: #f1f1f1;
+  border-radius: 0.25rem;
+  transition: background-color 0.2s;
+}
+
+details summary:hover {
+    background-color: #e1e1e1;
+}
+.dark-theme details summary:hover {
+    background-color: #555;
+}
+
+/* Estilo para o conteúdo do log (onde a quebra de linha é importante) */
+details pre {
+  margin-top: 0.5rem;
+  padding: 1rem;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 0 0 0.25rem 0.25rem;
+  font-size: 0.9em;
+  font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+
+  /* --- REGRAS PARA QUEBRA DE LINHA --- */
+  white-space: pre-wrap;   /* ESSENCIAL: Permite quebra de linha */
+  word-wrap: break-word;     /* ESSENCIAL: Quebra palavras longas */
+  overflow-x: auto;        /* Adiciona scroll horizontal como fallback */
+}
+
+
+#conversaInterna {
+  white-space: pre-wrap; /* Aplica quebra de linha aqui também */
+  word-wrap: break-word; /* E quebra de palavra */
+  font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+  max-height: 400px;
+  overflow-y: auto;
+  font-size: 0.9em;
+  /* visibilidade controlada por JS/Bootstrap via d-none */
+}
+
+/* Classe utilitária para esconder elementos (opcional) */
+.hidden {
+  display: none !important;
+}
+
+
+/* --- Responsividade --- */
+@media (max-width: 768px) {
+    /* Ajustes para telas médias, se necessário */
+}
+
+@media (max-width: 576px) {
+  /* Ajusta margens que podem quebrar em telas pequenas */
+  .me-2 { margin-right: 0.5rem !important; }
+  .me-3 { margin-right: 1rem !important; }
+  .ms-2 { margin-left: 0.5rem !important; }
+
+  /* Melhora layout do filtro e botões de log */
+  #filterSelect {
+    margin-bottom: 0.5rem;
+  }
+}

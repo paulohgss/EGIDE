@@ -1,0 +1,164 @@
+<<<<<<< HEAD
+Égide
+Missão Principal:
+
+Revolucionar a advocacia brasileira, com foco inicial no direito previdenciário, por meio de uma plataforma digital integrada que automatiza tarefas repetitivas, utiliza inteligência artificial para análises jurídicas e geração de relatórios, e simplifica o gerenciamento de clientes e casos. A plataforma deve ser intuitiva, acessível a usuários com mínima capacitação técnica (a partir de 12 anos), e permitir a delegação de tarefas, reduzindo erros humanos, economizando tempo, e otimizando a tomada de decisão jurídica, desde o primeiro contato com o cliente até a conclusão do caso.
+
+Objetivos Específicos:
+
+Automação de Tarefas Repetitivas:
+Transcrição de Atendimentos: Gravar e transcrever automaticamente áudios de atendimentos com clientes, usando IA (e.g., OpenAI Whisper).
+Geração de Relatórios: Produzir relatórios detalhados (técnicos e consolidados) a partir de documentos e informações do caso, com ativação manual para otimizar custos.
+Gestão de Prazos e Tarefas: Organizar agendas, criar prazos, acompanhar tarefas, e notificar usuários automaticamente.
+Extração de Texto: Transcrever documentos digitalizados (e.g., RG, CPF, laudos) assim que forem carregados na plataforma.
+Integração de Inteligência Artificial:
+Redação de Relatórios: Continuar utilizando bots (Redator, Médico, Estrategista, Supervisor) para gerar relatórios e análises jurídicas, com sugestões de estratégias claras.
+Análise de Documentos: Extrair informações relevantes de documentos (e.g., laudos médicos, carteira de trabalho) para alimentar relatórios e estratégias.
+Chatbot Interativo: Oferecer um chatbot que receba informações do atendimento, processe com IA, e sugira próximas etapas (e.g., fechar contrato, dispensar cliente, ou manter pendências).
+Gerenciamento de Clientes e Casos:
+Estrutura de Pastas: Organizar dados em uma hierarquia de pastas na nuvem, como:
+ESCRITORIO_FULANO_OABSP12345/CLIENTES/NOME_CLIENTE_CPF/CASO_ESPECIFICO (e.g., ESCRITORIO_FULANO_OABSP12345/CLIENTES/EVANDO_MARCELO_GUERRA_12312312344/APOSENTADORIA_POR_IDADE).
+Cadastro de Clientes: Criar cadastros automáticos com nome completo e CPF, incluindo representantes legais (adicionados posteriormente, se necessário).
+Gestão de Casos: Centralizar triagens, atendimentos, documentos, e relatórios, com histórico completo e acompanhamento de progresso.
+Delegação Simplificada e Acesso Restrito:
+Fluxos de Trabalho: Criar fluxos pré-definidos com decisões simples (e.g., botões "sim/não") para delegar tarefas a assistentes ou estagiários.
+Controle de Acesso: Permitir que advogados cadastrem escritórios e criem logins para assistentes, com permissões específicas (e.g., acesso restrito a certos clientes ou casos).
+Acessibilidade: Garantir que a interface seja operável por usuários com pouca experiência, com validações para evitar erros.
+Redução de Erros Humanos:
+Padronizar processos com fluxos automatizados e validações de dados.
+Usar IA para sugerir ações e verificar consistência jurídica.
+Exibir relatórios completos diretamente na plataforma para facilitar revisões.
+Funcionalidades Adicionais:
+Upload e Visualização de Documentos: Permitir upload de PDFs e outros arquivos, com visualização direta na plataforma (sem alternar sistemas).
+Edição de Peças Jurídicas: Oferecer um editor de texto integrado para criar petições, recursos, e outros documentos, vinculados ao cliente/caso.
+Armazenamento: Decidir entre Google Drive ou servidor próprio, priorizando acesso integrado na plataforma.
+Público-Alvo:
+
+Advogados e escritórios de advocacia especializados em direito previdenciário.
+Equipes administrativas (assistentes, estagiários) com diferentes níveis de acesso.
+Clientes, beneficiados por processos mais rápidos e transparentes.
+Valor Entregue:
+
+Economia de tempo com automação e IA.
+Maior precisão em relatórios, estratégias, e gestão de casos.
+Interface unificada que elimina a necessidade de múltiplos sistemas.
+Delegação eficiente e segura, com redução de erros.
+Conexão com o Progresso Atual
+O projeto Égide/Multi-AgentsGPT, conforme descrito nos resumos anteriores e nas atividades de hoje, já implementa uma base sólida para os objetivos, especialmente na automação de relatórios e análise jurídica com IA. Vamos conectar o progresso atual ao objetivo readaptado e às considerações fornecidas:
+
+Progresso Até Ontem:
+Frontend:
+Modularizado em arquivos como main.js, api.js, ui.js, etc., com interface para triagem inicial de casos (bots Redator, Médico, Estrategista, Supervisor).
+Corrigidos erros como SyntaxError (importações duplicadas), TypeError (logs), e problemas no PDF (em-74% certeza de que está correto.
+Implementado o nome "Égide" na interface via i18n.js.
+Configurado com http-server (posteriormente substituído por Vite).
+Backend:
+Configurado com server.js, usando better-sqlite3 para persistência (egide.db) e endpoints /api/call-bot e /api/session-history.
+Atua como proxy para a API da OpenAI, eliminando a chave do frontend.
+Testes realizados com curl, com ajustes para ignorar autenticação temporariamente.
+Pendências:
+Erro 404 em bases/base_pt.txt (provavelmente erro de nomeação).
+Decisão sobre o botão "Ver Discussão dos Bots".
+Autenticação (login.html, register.html) pendente.
+Persistência de session_id no localStorage.
+Deploy no Render (backend) e Netlify (frontend).
+Progresso Hoje:
+Configuração no Novo Computador:
+Resolvidos erros no frontend: SyntaxError (duplicação de downloadConversationAsPdf) e AbortError (timeout aumentado para 90s).
+Implementado indicador de progresso (showProgress, clearProgress) em ui.js e api.js.
+Configurado o frontend com Vite para maior robustez.
+Tentativa de configurar o backend, mas enfrentado erro de incompatibilidade do better-sqlite3 (NODE_MODULE_VERSION 127 vs. 108).
+Fornecidas instruções para atualizar o Node.js para a versão 20 e reinstalar dependências.
+Alinhamento com o Objetivo:
+O indicador de progresso melhora a experiência do usuário, essencial para uma interface intuitiva.
+O backend como proxy suporta a segurança e escalabilidade, alinhando-se com a comercialização futura.
+A geração de relatórios pelos bots já atende à automação inicial e à análise jurídica.
+Conexão com as Novas Considerações:
+Estrutura de Pastas: O backend (server.js) e o banco SQLite podem suportar a hierarquia de pastas (ESCRITORIO/CLIENTES/NOME_CPF/CASO). Isso exige um sistema de arquivos na nuvem ou banco de dados para armazenar metadados.
+Upload de Documentos: Ainda não implementado, mas pode ser adicionado com um endpoint no backend (e.g., /api/upload) e integração com armazenamento (Google Drive ou servidor próprio).
+Transcrição de Documentos: Requer integração com OCR (e.g., Tesseract) ou APIs de extração de texto (e.g., AWS Textract).
+Login e Permissões: O backend já suporta /api/register e /api/login, mas a interface de autenticação e controle de acesso precisa ser desenvolvida.
+Relatórios na Plataforma: Os relatórios gerados pelos bots podem ser salvos no SQLite e exibidos na UI, mas a visualização direta ainda não está implementada.
+=======
+Égide
+Missão Principal:
+
+Revolucionar a advocacia brasileira, com foco inicial no direito previdenciário, por meio de uma plataforma digital integrada que automatiza tarefas repetitivas, utiliza inteligência artificial para análises jurídicas e geração de relatórios, e simplifica o gerenciamento de clientes e casos. A plataforma deve ser intuitiva, acessível a usuários com mínima capacitação técnica (a partir de 12 anos), e permitir a delegação de tarefas, reduzindo erros humanos, economizando tempo, e otimizando a tomada de decisão jurídica, desde o primeiro contato com o cliente até a conclusão do caso.
+
+Objetivos Específicos:
+
+Automação de Tarefas Repetitivas:
+Transcrição de Atendimentos: Gravar e transcrever automaticamente áudios de atendimentos com clientes, usando IA (e.g., OpenAI Whisper).
+Geração de Relatórios: Produzir relatórios detalhados (técnicos e consolidados) a partir de documentos e informações do caso, com ativação manual para otimizar custos.
+Gestão de Prazos e Tarefas: Organizar agendas, criar prazos, acompanhar tarefas, e notificar usuários automaticamente.
+Extração de Texto: Transcrever documentos digitalizados (e.g., RG, CPF, laudos) assim que forem carregados na plataforma.
+Integração de Inteligência Artificial:
+Redação de Relatórios: Continuar utilizando bots (Redator, Médico, Estrategista, Supervisor) para gerar relatórios e análises jurídicas, com sugestões de estratégias claras.
+Análise de Documentos: Extrair informações relevantes de documentos (e.g., laudos médicos, carteira de trabalho) para alimentar relatórios e estratégias.
+Chatbot Interativo: Oferecer um chatbot que receba informações do atendimento, processe com IA, e sugira próximas etapas (e.g., fechar contrato, dispensar cliente, ou manter pendências).
+Gerenciamento de Clientes e Casos:
+Estrutura de Pastas: Organizar dados em uma hierarquia de pastas na nuvem, como:
+ESCRITORIO_FULANO_OABSP12345/CLIENTES/NOME_CLIENTE_CPF/CASO_ESPECIFICO (e.g., ESCRITORIO_FULANO_OABSP12345/CLIENTES/EVANDO_MARCELO_GUERRA_12312312344/APOSENTADORIA_POR_IDADE).
+Cadastro de Clientes: Criar cadastros automáticos com nome completo e CPF, incluindo representantes legais (adicionados posteriormente, se necessário).
+Gestão de Casos: Centralizar triagens, atendimentos, documentos, e relatórios, com histórico completo e acompanhamento de progresso.
+Delegação Simplificada e Acesso Restrito:
+Fluxos de Trabalho: Criar fluxos pré-definidos com decisões simples (e.g., botões "sim/não") para delegar tarefas a assistentes ou estagiários.
+Controle de Acesso: Permitir que advogados cadastrem escritórios e criem logins para assistentes, com permissões específicas (e.g., acesso restrito a certos clientes ou casos).
+Acessibilidade: Garantir que a interface seja operável por usuários com pouca experiência, com validações para evitar erros.
+Redução de Erros Humanos:
+Padronizar processos com fluxos automatizados e validações de dados.
+Usar IA para sugerir ações e verificar consistência jurídica.
+Exibir relatórios completos diretamente na plataforma para facilitar revisões.
+Funcionalidades Adicionais:
+Upload e Visualização de Documentos: Permitir upload de PDFs e outros arquivos, com visualização direta na plataforma (sem alternar sistemas).
+Edição de Peças Jurídicas: Oferecer um editor de texto integrado para criar petições, recursos, e outros documentos, vinculados ao cliente/caso.
+Armazenamento: Decidir entre Google Drive ou servidor próprio, priorizando acesso integrado na plataforma.
+Público-Alvo:
+
+Advogados e escritórios de advocacia especializados em direito previdenciário.
+Equipes administrativas (assistentes, estagiários) com diferentes níveis de acesso.
+Clientes, beneficiados por processos mais rápidos e transparentes.
+Valor Entregue:
+
+Economia de tempo com automação e IA.
+Maior precisão em relatórios, estratégias, e gestão de casos.
+Interface unificada que elimina a necessidade de múltiplos sistemas.
+Delegação eficiente e segura, com redução de erros.
+Conexão com o Progresso Atual
+O projeto Égide/Multi-AgentsGPT, conforme descrito nos resumos anteriores e nas atividades de hoje, já implementa uma base sólida para os objetivos, especialmente na automação de relatórios e análise jurídica com IA. Vamos conectar o progresso atual ao objetivo readaptado e às considerações fornecidas:
+
+Progresso Até Ontem:
+Frontend:
+Modularizado em arquivos como main.js, api.js, ui.js, etc., com interface para triagem inicial de casos (bots Redator, Médico, Estrategista, Supervisor).
+Corrigidos erros como SyntaxError (importações duplicadas), TypeError (logs), e problemas no PDF (em-74% certeza de que está correto.
+Implementado o nome "Égide" na interface via i18n.js.
+Configurado com http-server (posteriormente substituído por Vite).
+Backend:
+Configurado com server.js, usando better-sqlite3 para persistência (egide.db) e endpoints /api/call-bot e /api/session-history.
+Atua como proxy para a API da OpenAI, eliminando a chave do frontend.
+Testes realizados com curl, com ajustes para ignorar autenticação temporariamente.
+Pendências:
+Erro 404 em bases/base_pt.txt (provavelmente erro de nomeação).
+Decisão sobre o botão "Ver Discussão dos Bots".
+Autenticação (login.html, register.html) pendente.
+Persistência de session_id no localStorage.
+Deploy no Render (backend) e Netlify (frontend).
+Progresso Hoje:
+Configuração no Novo Computador:
+Resolvidos erros no frontend: SyntaxError (duplicação de downloadConversationAsPdf) e AbortError (timeout aumentado para 90s).
+Implementado indicador de progresso (showProgress, clearProgress) em ui.js e api.js.
+Configurado o frontend com Vite para maior robustez.
+Tentativa de configurar o backend, mas enfrentado erro de incompatibilidade do better-sqlite3 (NODE_MODULE_VERSION 127 vs. 108).
+Fornecidas instruções para atualizar o Node.js para a versão 20 e reinstalar dependências.
+Alinhamento com o Objetivo:
+O indicador de progresso melhora a experiência do usuário, essencial para uma interface intuitiva.
+O backend como proxy suporta a segurança e escalabilidade, alinhando-se com a comercialização futura.
+A geração de relatórios pelos bots já atende à automação inicial e à análise jurídica.
+Conexão com as Novas Considerações:
+Estrutura de Pastas: O backend (server.js) e o banco SQLite podem suportar a hierarquia de pastas (ESCRITORIO/CLIENTES/NOME_CPF/CASO). Isso exige um sistema de arquivos na nuvem ou banco de dados para armazenar metadados.
+Upload de Documentos: Ainda não implementado, mas pode ser adicionado com um endpoint no backend (e.g., /api/upload) e integração com armazenamento (Google Drive ou servidor próprio).
+Transcrição de Documentos: Requer integração com OCR (e.g., Tesseract) ou APIs de extração de texto (e.g., AWS Textract).
+Login e Permissões: O backend já suporta /api/register e /api/login, mas a interface de autenticação e controle de acesso precisa ser desenvolvida.
+Relatórios na Plataforma: Os relatórios gerados pelos bots podem ser salvos no SQLite e exibidos na UI, mas a visualização direta ainda não está implementada.
+>>>>>>> eeb9824b527f77365a5e190fc17e921f104b212c
+Edição de Peças Jurídicas: Um editor de texto integrado (e.g., Quill.js) pode ser adicionado à plataforma.

@@ -1,0 +1,142 @@
+<<<<<<< HEAD
+Okay, vamos detalhar a arquitetura como ela se apresenta *neste momento*, com base em nossa conversa e nas informações disponíveis (incluindo o script que você compartilhou e o repositório GitHub mencionado). É importante notar que estamos em uma fase de transição: temos um artefato inicial (o script) e uma arquitetura alvo (aplicação web) definida, mas a implementação concreta dessa arquitetura alvo ainda precisa começar.
+
+**Arquitetura Atual do Sistema Égide (em 30/04/2025)**
+
+**1. Artefato de Código Existente (Protótipo Conceitual - Não será a base final):**
+
+* **O quê:** Um conjunto de arquivos Google Apps Script (`.gs`).
+* **Localização:** Provavelmente o que está no repositório GitHub `https://github.com/paulohgss/EGIDE-JURIDICO` (presumindo que foi isso que você subiu ontem). Poderia também existir no ambiente de desenvolvimento do Google Apps Script associado à sua conta Google.
+* **Linguagem:** Google Apps Script (baseado em JavaScript).
+* **Estrutura de Arquivos (Típica de Apps Script, baseado no que vimos):**
+    * `Código.gs` (ou múltiplos arquivos `.gs`): Contém todo o código-fonte.
+        * **Funções Principais Identificadas:**
+            * `monitorarPasta()`: Lógica para verificar uma pasta no Drive, encontrar PDFs novos.
+            * `extrairTexto(blob)`: Função crucial que tenta extrair texto, primeiro por conversão direta para Google Doc, depois usando a API de OCR nativa do Drive (requer serviço avançado ativado).
+            * `salvarTranscricao(...)`: Cria o arquivo `.txt` com o texto extraído.
+            * `chamarOpenAI(apiKey, prompt)`: Envia a requisição para a API da OpenAI e retorna a resposta.
+            * `gerarRelatorioIA(promptModelo)`, `gerarRelatorioUnicoIA(promptModelo)`: Orquestram a leitura das transcrições e a chamada à OpenAI para gerar relatórios (individual/consolidado).
+            * `mainRelatorioIndividual()`, `mainRelatorioUnico()`: Definem os prompts e chamam as funções de geração.
+            * Funções de Interface (opcionais no Apps Script): `painelEscolhaRelatorio()`, `abrirPainelRelatorio()`, `gerarIndividual()`, `gerarUnico()`, `gerarAmbos()`, que interagem com a UI do Google (Planilhas, Docs ou UI HTML Service).
+    * `appsscript.json` (Manifest): Arquivo de configuração que define permissões (escopos), serviços avançados utilizados (como o Drive API), dependências, etc.
+    * `PainelRelatorio.html` (se a função `abrirPainelRelatorio` foi usada): Arquivo HTML para criar uma interface de usuário personalizada dentro do ambiente Google.
+* **Backend/Frontend (no contexto do Apps Script):**
+    * O Apps Script funciona primariamente como um **Backend** baseado em servidor (nos servidores do Google). Ele executa a lógica, acessa APIs (Drive, OpenAI, Documentos).
+    * O **Frontend** (se existir) é limitado às UIs nativas do Google Workspace (menus, caixas de diálogo simples como `Browser.inputBox`) ou a interfaces web customizadas criadas com o `HtmlService` (que rodam em um sandbox dentro do ambiente Google).
+* **Limitações desta Arquitetura (Por que estamos mudando):** Fortemente acoplada ao Google Drive/Workspace, menos flexível para criar interfaces complexas e personalizadas, limitações de execução, não ideal para uma aplicação multi-tenant comercial como o Égide.
+
+**2. Arquitetura Alvo (Planejada - A ser Implementada):**
+
+Esta é a arquitetura que definimos como o caminho a seguir para o Égide. **Atualmente, ela existe como um plano/design, e a implementação do código correspondente ainda precisa ser feita.**
+
+* **Tipo:** Aplicação Web moderna.
+* **Componentes Principais:**
+    * **Frontend:**
+        * **Responsabilidade:** Interface do usuário rodando no navegador do cliente. Exibição de dados, captura de inputs, interatividade.
+        * **Arquivos (Estrutura Típica - Exemplo):**
+            * `index.html`: Ponto de entrada principal.
+            * Pastas para componentes reutilizáveis (ex: `src/components/Botao.js`, `src/components/ListaDocumentos.js`).
+            * Pastas para "páginas" ou "telas" da aplicação (ex: `src/views/TelaLogin.js`, `src/views/TelaCaso.js`).
+            * Arquivos de estilo (`.css`, `.scss`).
+            * Arquivos de configuração (ex: `package.json` se usar Node.js/npm para gerenciar dependências do frontend como React/Vue).
+        * **Programação:** HTML, CSS, JavaScript (provavelmente usando um framework como React, Vue ou Angular).
+        * **Funções (Exemplos):**
+            * Funções para renderizar componentes na tela.
+            * Funções para lidar com eventos (clique de botão, preenchimento de formulário).
+            * Funções para fazer requisições HTTP para o Backend (usando `Workspace` ou bibliotecas como `axios`).
+            * Funções para atualizar o estado da interface com base nas respostas do Backend.
+    * **Backend:**
+        * **Responsabilidade:** Lógica de negócios, segurança, acesso a dados e APIs, rodando em um servidor.
+        * **Arquivos (Estrutura Típica - Exemplo com Python/Django):**
+            * `manage.py`: Utilitário de linha de comando do Django.
+            * Pasta do Projeto Principal (ex: `egide_project/`): Contém configurações (`settings.py`, `urls.py`).
+            * Pastas de "Apps" (módulos) do Django (ex: `users/`, `cases/`, `documents/`): Cada app contém seus modelos (`models.py` - define estrutura do banco de dados), views (`views.py` - processa requisições e retorna respostas), URLs (`urls.py` - mapeia URLs para views), etc.
+            * Arquivos de configuração de dependências (ex: `requirements.txt`).
+        * **Programação:** Linguagem/Framework a ser escolhido (Python/Django/Flask, Node.js/Express, etc.).
+        * **Funções (Exemplos):**
+            * Funções (ou métodos em classes) nas "views" ou "controllers" para lidar com requisições HTTP específicas (ex: `upload_documento(request)`, `gerar_relatorio_ia(request, document_id)`).
+            * Funções para interagir com o banco de dados (salvar/buscar clientes, casos, documentos).
+            * Funções para interagir com o sistema de armazenamento de arquivos (salvar PDF no S3/Drive).
+            * Funções para chamar APIs externas (ex: `chamar_google_ocr(pdf_content)`, `chamar_openai_api(prompt)`).
+            * Funções de Lógica de Negócios (ex: `verificar_permissao_usuario(user, case)`).
+    * **Banco de Dados:** (Não são arquivos de código, mas parte da arquitetura) Tabelas para armazenar dados (usuários, escritórios, clientes, casos, documentos, textos_ocr, relatorios_ia).
+    * **Armazenamento de Arquivos:** (Não são arquivos de código) O local onde os PDFs serão efetivamente guardados (ex: um bucket S3, uma pasta no Google Drive gerenciada via API).
+
+**Em Resumo - O Estado Atual:**
+
+* **Código Concreto:** Existe um script Google Apps Script (provavelmente no GitHub) que serve como prova de conceito para OCR e IA, mas **não será** a base da aplicação final.
+* **Plano/Design:** Existe uma arquitetura alvo definida: uma aplicação web com Frontend e Backend separados, que é o padrão moderno e flexível necessário para o Égide.
+* **Implementação:** A codificação do Frontend e do Backend para a arquitetura alvo **ainda precisa ser iniciada.** O repositório GitHub existente precisará ser estruturado (ou reestruturado) para acomodar os projetos Frontend e Backend.
+
+=======
+Okay, vamos detalhar a arquitetura como ela se apresenta *neste momento*, com base em nossa conversa e nas informações disponíveis (incluindo o script que você compartilhou e o repositório GitHub mencionado). É importante notar que estamos em uma fase de transição: temos um artefato inicial (o script) e uma arquitetura alvo (aplicação web) definida, mas a implementação concreta dessa arquitetura alvo ainda precisa começar.
+
+**Arquitetura Atual do Sistema Égide (em 30/04/2025)**
+
+**1. Artefato de Código Existente (Protótipo Conceitual - Não será a base final):**
+
+* **O quê:** Um conjunto de arquivos Google Apps Script (`.gs`).
+* **Localização:** Provavelmente o que está no repositório GitHub `https://github.com/paulohgss/EGIDE-JURIDICO` (presumindo que foi isso que você subiu ontem). Poderia também existir no ambiente de desenvolvimento do Google Apps Script associado à sua conta Google.
+* **Linguagem:** Google Apps Script (baseado em JavaScript).
+* **Estrutura de Arquivos (Típica de Apps Script, baseado no que vimos):**
+    * `Código.gs` (ou múltiplos arquivos `.gs`): Contém todo o código-fonte.
+        * **Funções Principais Identificadas:**
+            * `monitorarPasta()`: Lógica para verificar uma pasta no Drive, encontrar PDFs novos.
+            * `extrairTexto(blob)`: Função crucial que tenta extrair texto, primeiro por conversão direta para Google Doc, depois usando a API de OCR nativa do Drive (requer serviço avançado ativado).
+            * `salvarTranscricao(...)`: Cria o arquivo `.txt` com o texto extraído.
+            * `chamarOpenAI(apiKey, prompt)`: Envia a requisição para a API da OpenAI e retorna a resposta.
+            * `gerarRelatorioIA(promptModelo)`, `gerarRelatorioUnicoIA(promptModelo)`: Orquestram a leitura das transcrições e a chamada à OpenAI para gerar relatórios (individual/consolidado).
+            * `mainRelatorioIndividual()`, `mainRelatorioUnico()`: Definem os prompts e chamam as funções de geração.
+            * Funções de Interface (opcionais no Apps Script): `painelEscolhaRelatorio()`, `abrirPainelRelatorio()`, `gerarIndividual()`, `gerarUnico()`, `gerarAmbos()`, que interagem com a UI do Google (Planilhas, Docs ou UI HTML Service).
+    * `appsscript.json` (Manifest): Arquivo de configuração que define permissões (escopos), serviços avançados utilizados (como o Drive API), dependências, etc.
+    * `PainelRelatorio.html` (se a função `abrirPainelRelatorio` foi usada): Arquivo HTML para criar uma interface de usuário personalizada dentro do ambiente Google.
+* **Backend/Frontend (no contexto do Apps Script):**
+    * O Apps Script funciona primariamente como um **Backend** baseado em servidor (nos servidores do Google). Ele executa a lógica, acessa APIs (Drive, OpenAI, Documentos).
+    * O **Frontend** (se existir) é limitado às UIs nativas do Google Workspace (menus, caixas de diálogo simples como `Browser.inputBox`) ou a interfaces web customizadas criadas com o `HtmlService` (que rodam em um sandbox dentro do ambiente Google).
+* **Limitações desta Arquitetura (Por que estamos mudando):** Fortemente acoplada ao Google Drive/Workspace, menos flexível para criar interfaces complexas e personalizadas, limitações de execução, não ideal para uma aplicação multi-tenant comercial como o Égide.
+
+**2. Arquitetura Alvo (Planejada - A ser Implementada):**
+
+Esta é a arquitetura que definimos como o caminho a seguir para o Égide. **Atualmente, ela existe como um plano/design, e a implementação do código correspondente ainda precisa ser feita.**
+
+* **Tipo:** Aplicação Web moderna.
+* **Componentes Principais:**
+    * **Frontend:**
+        * **Responsabilidade:** Interface do usuário rodando no navegador do cliente. Exibição de dados, captura de inputs, interatividade.
+        * **Arquivos (Estrutura Típica - Exemplo):**
+            * `index.html`: Ponto de entrada principal.
+            * Pastas para componentes reutilizáveis (ex: `src/components/Botao.js`, `src/components/ListaDocumentos.js`).
+            * Pastas para "páginas" ou "telas" da aplicação (ex: `src/views/TelaLogin.js`, `src/views/TelaCaso.js`).
+            * Arquivos de estilo (`.css`, `.scss`).
+            * Arquivos de configuração (ex: `package.json` se usar Node.js/npm para gerenciar dependências do frontend como React/Vue).
+        * **Programação:** HTML, CSS, JavaScript (provavelmente usando um framework como React, Vue ou Angular).
+        * **Funções (Exemplos):**
+            * Funções para renderizar componentes na tela.
+            * Funções para lidar com eventos (clique de botão, preenchimento de formulário).
+            * Funções para fazer requisições HTTP para o Backend (usando `Workspace` ou bibliotecas como `axios`).
+            * Funções para atualizar o estado da interface com base nas respostas do Backend.
+    * **Backend:**
+        * **Responsabilidade:** Lógica de negócios, segurança, acesso a dados e APIs, rodando em um servidor.
+        * **Arquivos (Estrutura Típica - Exemplo com Python/Django):**
+            * `manage.py`: Utilitário de linha de comando do Django.
+            * Pasta do Projeto Principal (ex: `egide_project/`): Contém configurações (`settings.py`, `urls.py`).
+            * Pastas de "Apps" (módulos) do Django (ex: `users/`, `cases/`, `documents/`): Cada app contém seus modelos (`models.py` - define estrutura do banco de dados), views (`views.py` - processa requisições e retorna respostas), URLs (`urls.py` - mapeia URLs para views), etc.
+            * Arquivos de configuração de dependências (ex: `requirements.txt`).
+        * **Programação:** Linguagem/Framework a ser escolhido (Python/Django/Flask, Node.js/Express, etc.).
+        * **Funções (Exemplos):**
+            * Funções (ou métodos em classes) nas "views" ou "controllers" para lidar com requisições HTTP específicas (ex: `upload_documento(request)`, `gerar_relatorio_ia(request, document_id)`).
+            * Funções para interagir com o banco de dados (salvar/buscar clientes, casos, documentos).
+            * Funções para interagir com o sistema de armazenamento de arquivos (salvar PDF no S3/Drive).
+            * Funções para chamar APIs externas (ex: `chamar_google_ocr(pdf_content)`, `chamar_openai_api(prompt)`).
+            * Funções de Lógica de Negócios (ex: `verificar_permissao_usuario(user, case)`).
+    * **Banco de Dados:** (Não são arquivos de código, mas parte da arquitetura) Tabelas para armazenar dados (usuários, escritórios, clientes, casos, documentos, textos_ocr, relatorios_ia).
+    * **Armazenamento de Arquivos:** (Não são arquivos de código) O local onde os PDFs serão efetivamente guardados (ex: um bucket S3, uma pasta no Google Drive gerenciada via API).
+
+**Em Resumo - O Estado Atual:**
+
+* **Código Concreto:** Existe um script Google Apps Script (provavelmente no GitHub) que serve como prova de conceito para OCR e IA, mas **não será** a base da aplicação final.
+* **Plano/Design:** Existe uma arquitetura alvo definida: uma aplicação web com Frontend e Backend separados, que é o padrão moderno e flexível necessário para o Égide.
+* **Implementação:** A codificação do Frontend e do Backend para a arquitetura alvo **ainda precisa ser iniciada.** O repositório GitHub existente precisará ser estruturado (ou reestruturado) para acomodar os projetos Frontend e Backend.
+
+>>>>>>> eeb9824b527f77365a5e190fc17e921f104b212c
+O próximo passo lógico, após escolher as tecnologias, seria começar a criar a estrutura de arquivos e as primeiras funções no **Backend** para lidar com o upload e o processamento inicial dos documentos, conforme detalhado anteriormente.

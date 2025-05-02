@@ -76,31 +76,83 @@ async function loadSessionData(sessionId) {
 
 /* === INICIALIZAÇÃO === */
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("Aplicação Égide Iniciando..."); // Nome atualizado
-    initializeTheme();
-    initializeI18n(async (err) => { // Callback de i18n async
-        if (err) {
-             console.error("Falha ao inicializar i18n:", err);
-             // Poderia mostrar um erro fatal aqui
-             return;
-        }
+  console.log("Aplicação Égide Iniciando..."); // Nome atualizado
 
-        setupEventListeners(); // Configura os botões e inputs
+  // <<< VERIFICAÇÃO DE AUTENTICAÇÃO >>>
+  const token = localStorage.getItem('token');
+  // Verifica se o token NÃO existe E se a página atual NÃO é login.html ou register.html
+  if (!token && !window.location.pathname.endsWith('/login.html') && !window.location.pathname.endsWith('/register.html')) {
+      // Se NÃO há token E não estamos já nas páginas de login/registro, redireciona para login
+      console.log("Nenhum token encontrado, redirecionando para login.");
+      window.location.href = 'login.html'; // Redireciona para a página de login
+      return; // Interrompe a execução do resto do script desta página
+  }
+  // <<< FIM DA VERIFICAÇÃO >>>
 
-        const savedSessionId = localStorage.getItem(SESSION_ID_STORAGE_KEY);
-        if (savedSessionId) {
-          console.log(`Encontrado session_id salvo: ${savedSessionId}`);
-          await loadSessionData(savedSessionId); // Tenta carregar a sessão anterior
-        } else {
-          console.log("Nenhum session_id encontrado no localStorage.");
-          resetUIForNewCase(); // Garante que a UI está limpa
-          renderLogs(); // Renderiza (esconde) a área de logs
-        }
+  // Se chegou aqui, ou tem token ou está na página de login/registro (onde o script pode não fazer mais nada)
+  // Inicializa tema e internacionalização
+  initializeTheme();
+  initializeI18n(async (err) => { // Callback de i18n async
+      if (err) {
+           console.error("Falha ao inicializar i18n:", err);
+           // Poderia mostrar um erro fatal aqui se não estiver nas páginas de auth
+           if (window.location.pathname !== '/login.html' && window.location.pathname !== '/register.html') {
+              alert("Erro ao carregar configurações de idioma.");
+           }
+           return;
+      }
 
-        // Define o idioma inicial no select (após i18n carregar)
-        if(DOM.languageSelect) DOM.languageSelect.value = AppState.currentLanguage;
-    });
-});
+      // Só executa o resto se não estivermos nas páginas de auth
+      if (!window.location.pathname.endsWith('/login.html') && !window.location.pathname.endsWith('/register.html')) {
+
+          // Opcional: Mostrar saudação ao usuário se logado
+          const userGreetingElement = document.getElementById('user-greeting'); // Assume que este ID existe no index.html
+          const userId = localStorage.getItem('user_id');
+          if (token && userGreetingElement && userId) { // Mostra se tem token, elemento e user_id
+              // Idealmente, buscaria o username associado ao userId no backend
+              // Por enquanto, mostra o ID ou uma mensagem genérica
+              userGreetingElement.textContent = `Olá! (ID: ${userId})`; // Ajuste como preferir
+              userGreetingElement.classList.remove('d-none'); // Torna visível
+          }
+
+          setupEventListeners(); // Configura os botões e inputs da página principal
+
+          const savedSessionId = localStorage.getItem(SESSION_ID_STORAGE_KEY);
+          if (savedSessionId) {
+            console.log(`Encontrado session_id salvo: ${savedSessionId}`);
+            // Tenta carregar a sessão (já tem token, pois passou na verificação inicial)
+            await loadSessionData(savedSessionId);
+          } else {
+            console.log("Nenhum session_id encontrado no localStorage.");
+            resetUIForNewCase(); // Garante que a UI está limpa
+            renderLogs(); // Renderiza (esconde) a área de logs
+          }
+
+          // Define o idioma inicial no select (após i18n carregar)
+          if(DOM.languageSelect) DOM.languageSelect.value = AppState.currentLanguage;
+
+      } else {
+          // Estamos nas páginas de login/registro, não precisamos carregar sessões, etc.
+          // A lógica delas está no auth.js
+          console.log(`Página de autenticação (${window.location.pathname}). Lógica principal pulada.`);
+      }
+  });
+}); // Fim do DOMContentLoaded
+
+
+//Lida com o evento de clique no link/botão de logout.
+function handleLogout() {
+   console.log("Executando logout...");
+   // Remove token e user_id do localStorage
+   localStorage.removeItem('token');
+   localStorage.removeItem('user_id');
+   // Remove o session_id também para não carregar sessão antiga ao logar de novo
+   // localStorage.removeItem(SESSION_ID_STORAGE_KEY); // SESSION_ID_STORAGE_KEY precisa estar importado de state.js
+
+   // Redireciona para a página de login
+   window.location.href = 'login.html';
+}
+
 
 /* === LÓGICA PRINCIPAL DO FLUXO === */
 
@@ -397,11 +449,25 @@ function setupEventListeners() {
       renderLogs(); // Re-renderiza os logs com o novo filtro
   });
 
+  
   // Associa handleClearLogs (de logs.js) ao botão de limpar
   DOM.clearLogsBtn?.addEventListener('click', handleClearLogs);
   DOM.exportLogsBtn?.addEventListener('click', exportLogs);
   DOM.downloadPdfBtn?.addEventListener('click', downloadConversationAsPdf);
   DOM.respondSupervisorBtn?.addEventListener('click', handleSupervisorResponse); // Botão para responder ao supervisor
 
+  const logoutLink = document.getElementById('logout-link');
+  if (logoutLink) {
+      logoutLink.addEventListener('click', (event) => {
+          event.preventDefault(); // Previne a navegação padrão do link '#'
+          handleLogout();
+      });
+  } else {
+       console.warn("Elemento de logout #logout-link não encontrado.");
+  }
+
+
   console.log("Event listeners configurados.");
-} // <<< CHAVE FINAL ESTÁ AQUI >>>
+}
+
+ // <<< CHAVE FINAL ESTÁ AQUI >>>

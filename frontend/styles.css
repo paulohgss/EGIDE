@@ -149,3 +149,15 @@ details pre {
     margin-bottom: 0.5rem;
   }
 }
+
+/* styles.css - Adicionar no final do arquivo */
+
+/*
+ * Força a quebra de linha dentro dos logs (<pre class="log-text">)
+ * para evitar estouro horizontal.
+ */
+ .log-text {
+  white-space: pre-wrap;       /* Mantém espaços/quebras de linha, mas quebra linhas longas */
+  word-wrap: break-word;       /* Força a quebra de palavras muito longas que ainda estourariam */
+  overflow-wrap: break-word;   /* Sinônimo moderno para word-wrap */
+}

@@ -1,9 +1,9 @@
-// frontend/js/logs.js (Corrigido)
+// frontend/js/logs.js (Versão Final Corrigida)
 
 import { AppState, resetCaseState } from './state.js';
 import { DOM } from './dom-elements.js';
-import { resetUIForNewCase } from './ui.js';
-import { getBotLogPrefix, i18nInstance } from './i18n.js'; // <<< Importações corretas >>>
+import { resetUIForNewCase, updateElementVisibility } from './ui.js'; // Importa updateElementVisibility daqui
+import { getBotLogPrefix, i18nInstance } from './i18n.js';
 
 /**
  * Adiciona uma entrada ao histórico de conversa e aos logs da aplicação.
@@ -12,19 +12,22 @@ import { getBotLogPrefix, i18nInstance } from './i18n.js'; // <<< Importações 
  * @param {string} text O texto da mensagem.
  */
 export function addToHistoryAndLog(actor, text) {
-  if (!text) return; // Não adiciona entradas vazias
+  if (!text) return;
 
-  const timestamp = new Date().toISOString(); // Opcional: adicionar timestamp se necessário
+  const timestamp = new Date().toISOString();
+  const t = i18nInstance.t.bind(i18nInstance);
 
-  // Adiciona aos logs para exibição na UI
-  const logRoleName = actor === 'usuario' ? i18nInstance.t('userLogPrefixSimple', 'Usuário') : actor.charAt(0).toUpperCase() + actor.slice(1); // Usar tradução simples para nome do log
+  const logRoleName = actor === 'usuario'
+    ? t('userLogPrefixSimple', 'Usuário')
+    : actor.charAt(0).toUpperCase() + actor.slice(1);
   AppState.logs.push({ bot: logRoleName, texto: text });
 
-  // Adiciona ao histórico de conversa (string única) para enviar à API
-  const historyPrefix = actor === 'usuario' ? i18nInstance.t('userLogPrefix', 'Usuário') : getBotLogPrefix(actor); // Usa prefixo traduzido ou nome do bot
+  const historyPrefix = actor === 'usuario'
+    ? t('userLogPrefix', 'Usuário')
+    : getBotLogPrefix(actor);
   AppState.historicoConversa += `${historyPrefix}:\n${text}\n\n`;
 
-  renderLogs(); // Atualiza a exibição dos logs
+  renderLogs();
 }
 
 
@@ -33,9 +36,11 @@ export function addToHistoryAndLog(actor, text) {
  */
 export function renderLogs() {
   if (!DOM.logsIndividuais) return;
+  const t = i18nInstance.t.bind(i18nInstance);
+  const userLogName = t('userLogPrefixSimple', 'Usuário');
 
   const filteredLogs = AppState.logs.filter(log =>
-    AppState.filtroAtual === 'ALL' || log.bot === AppState.filtroAtual || (AppState.filtroAtual === 'Usuário' && log.bot === i18nInstance.t('userLogPrefixSimple', 'Usuário')) // Ajuste para filtrar 'Usuário'
+    AppState.filtroAtual === 'ALL' || log.bot === AppState.filtroAtual || (AppState.filtroAtual === 'Usuário' && log.bot === userLogName)
   );
 
   if (filteredLogs.length > 0) {
@@ -45,10 +50,10 @@ export function renderLogs() {
         <pre class="log-text">${escapeHtml(log.texto)}</pre>
       </div>
     `).join('');
-    updateElementVisibility(DOM.logsIndividuais, true); // <<< MOVIDO PARA DENTRO DO IF >>>
+    updateElementVisibility(DOM.logsIndividuais, true);
   } else {
-    DOM.logsIndividuais.innerHTML = ''; // Limpa se não houver logs
-    updateElementVisibility(DOM.logsIndividuais, false); // <<< MOVIDO PARA DENTRO DO ELSE >>>
+    DOM.logsIndividuais.innerHTML = '';
+    updateElementVisibility(DOM.logsIndividuais, false);
   }
 }
 
@@ -56,13 +61,17 @@ export function renderLogs() {
  * Limpa o estado do caso, os logs na UI e o session_id salvo.
  */
 export function handleClearLogs() {
+  const t = i18nInstance.t.bind(i18nInstance);
+  // Confirmação opcional antes de limpar
+  // if (!confirm(t('confirmClearLogs', 'Tem certeza que deseja limpar o histórico atual?'))) {
+  //    return;
+  // }
   console.log("Limpando logs e resetando estado...");
-  resetCaseState(); // Limpa AppState e localStorage
-  resetUIForNewCase(); // Limpa a UI (que agora deve esconder logs vazios)
-  renderLogs(); // Renderiza a área de logs (agora vazia e oculta)
-  if (DOM.entradaUsuario) DOM.entradaUsuario.value = '';
-  if (DOM.respostaFinal) DOM.respostaFinal.textContent = '';
-  // UI reset deve cuidar de esconder os elementos
+  resetCaseState();      // Limpa AppState e localStorage
+  resetUIForNewCase();   // Limpa a UI
+  renderLogs();          // Renderiza a área de logs (vazia/oculta)
+  if (DOM.entradaUsuario) DOM.entradaUsuario.value = ''; // Limpa campo de entrada
+  // O resetUIForNewCase já deve esconder a resposta final e botões
 }
 
 
@@ -70,8 +79,9 @@ export function handleClearLogs() {
  * Exporta o histórico da conversa atual como um arquivo de texto.
  */
 export function exportLogs() {
+  const t = i18nInstance.t.bind(i18nInstance);
   if (!AppState.historicoConversa) {
-    alert(i18nInstance.t('errorNoHistoryToExport', 'Não há histórico para exportar.'));
+    alert(t('errorNoHistoryToExport', 'Não há histórico para exportar.'));
     return;
   }
   const blob = new Blob([AppState.historicoConversa], { type: 'text/plain;charset=utf-8' });
@@ -88,11 +98,11 @@ export function exportLogs() {
 
 /**
  * Escapa caracteres HTML para exibição segura.
- * @param {string} unsafe Texto potencialmente inseguro.
+ * @param {string | null | undefined} unsafe Texto potencialmente inseguro.
  * @returns {string} Texto seguro para HTML.
  */
 function escapeHtml(unsafe) {
-    if (typeof unsafe !== 'string') return ''; // Garante que é string
+    if (typeof unsafe !== 'string') return '';
     return unsafe
          .replace(/&/g, "&amp;")
          .replace(/</g, "&lt;")
@@ -101,51 +111,48 @@ function escapeHtml(unsafe) {
          .replace(/'/g, "&#039;");
 }
 
-// <<< FUNÇÃO MOVIDA DE main.js >>>
 /**
  * Formata o histórico do backend (array de objetos) para a string única usada no AppState.
  * @param {Array<Object>} backendHistory Array de objetos do histórico do backend.
  * @returns {string} String formatada do histórico.
  */
 export function formatBackendHistoryToString(backendHistory) {
-    if (!Array.isArray(backendHistory)) return ""; // Verifica se é array
-    // Adapte conforme a estrutura EXATA retornada pelo backend no endpoint /api/session-history
+    if (!Array.isArray(backendHistory)) return "";
+    const t = i18nInstance.t.bind(i18nInstance);
     return backendHistory.map(entry => {
         let prefix = '';
         let content = entry.content || '';
         if (entry.type === 'user_message_to_bot') {
-            prefix = i18nInstance.t('userLogPrefix', 'Usuário');
+            prefix = t('userLogPrefix', 'Usuário');
         } else if (entry.type === 'bot_response') {
-            prefix = getBotLogPrefix(entry.role); // Usa a função de i18n para o nome do bot
+            prefix = getBotLogPrefix(entry.role);
         } else {
              console.warn("Tipo de entrada desconhecido no histórico do backend:", entry.type);
-             return ''; // Ignora entradas desconhecidas
+             return '';
         }
-        // Garante que o conteúdo não seja null/undefined antes de adicionar
         return `${prefix}:\n${content || ''}`;
-    }).filter(Boolean).join('\n\n'); // Junta com duas quebras de linha
+    }).filter(Boolean).join('\n\n');
 }
 
-// <<< FUNÇÃO MOVIDA DE main.js >>>
 /**
  * Formata o histórico do backend (array de objetos) para o array de logs da UI.
  * @param {Array<Object>} backendHistory Array de objetos do histórico do backend.
  * @returns {Array<{bot: string, texto: string}>} Array formatado para AppState.logs.
  */
 export function formatBackendHistoryToLogs(backendHistory) {
-   if (!Array.isArray(backendHistory)) return []; // Verifica se é array
+   if (!Array.isArray(backendHistory)) return [];
    const logs = [];
-   // Adapte conforme a estrutura EXATA retornada pelo backend
+   const t = i18nInstance.t.bind(i18nInstance);
+   const userLogName = t('userLogPrefixSimple', 'Usuário');
+
    backendHistory.forEach(entry => {
        let logBotName = '';
        let logText = entry.content || '';
 
        if (entry.type === 'user_message_to_bot') {
-           // Para consistência, vamos adicionar logs de usuário também
-            logBotName = i18nInstance.t('userLogPrefixSimple', 'Usuário');
+            logBotName = userLogName;
             logs.push({ bot: logBotName, texto: logText });
        } else if (entry.type === 'bot_response' && entry.role) {
-           // Converte role ('redator') para nome capitalizado ('Redator')
            logBotName = entry.role.charAt(0).toUpperCase() + entry.role.slice(1);
            logs.push({ bot: logBotName, texto: logText });
        }
@@ -153,10 +160,4 @@ export function formatBackendHistoryToLogs(backendHistory) {
    return logs;
 }
 
-// <<< REMOVIDA a função updateElementVisibility daqui >>>
-// Função auxiliar para visibilidade (deve ser importada de ui.js se necessário)
-function updateElementVisibility(element, isVisible) {
-    if (element) {
-        element.classList.toggle('d-none', !isVisible);
-    }
-}
+// Nota: Removi a definição duplicada de updateElementVisibility

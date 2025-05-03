@@ -74,66 +74,94 @@ async function loadSessionData(sessionId) {
 }
 
 
+// Em frontend/js/main.js
+
 /* === INICIALIZAÇÃO === */
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log("Aplicação Égide Iniciando..."); // Nome atualizado
+  console.log("Aplicação Égide Iniciando...");
 
-  // <<< VERIFICAÇÃO DE AUTENTICAÇÃO >>>
   const token = localStorage.getItem('token');
-  // Verifica se o token NÃO existe E se a página atual NÃO é login.html ou register.html
   if (!token && !window.location.pathname.endsWith('/login.html') && !window.location.pathname.endsWith('/register.html')) {
-      // Se NÃO há token E não estamos já nas páginas de login/registro, redireciona para login
       console.log("Nenhum token encontrado, redirecionando para login.");
-      window.location.href = 'login.html'; // Redireciona para a página de login
-      return; // Interrompe a execução do resto do script desta página
+      window.location.href = 'login.html';
+      return;
   }
-  // <<< FIM DA VERIFICAÇÃO >>>
 
-  // Se chegou aqui, ou tem token ou está na página de login/registro (onde o script pode não fazer mais nada)
-  // Inicializa tema e internacionalização
   initializeTheme();
-  initializeI18n(async (err) => { // Callback de i18n async
+  initializeI18n(async (err) => {
       if (err) {
            console.error("Falha ao inicializar i18n:", err);
-           // Poderia mostrar um erro fatal aqui se não estiver nas páginas de auth
-           if (window.location.pathname !== '/login.html' && window.location.pathname !== '/register.html') {
+           if (!window.location.pathname.endsWith('/login.html') && !window.location.pathname.endsWith('/register.html')) {
               alert("Erro ao carregar configurações de idioma.");
            }
            return;
       }
 
-      // Só executa o resto se não estivermos nas páginas de auth
       if (!window.location.pathname.endsWith('/login.html') && !window.location.pathname.endsWith('/register.html')) {
 
-          // Opcional: Mostrar saudação ao usuário se logado
-          const userGreetingElement = document.getElementById('user-greeting'); // Assume que este ID existe no index.html
+          // Mostra saudação
+          const userGreetingElement = document.getElementById('user-greeting');
           const userId = localStorage.getItem('user_id');
-          if (token && userGreetingElement && userId) { // Mostra se tem token, elemento e user_id
-              // Idealmente, buscaria o username associado ao userId no backend
-              // Por enquanto, mostra o ID ou uma mensagem genérica
-              userGreetingElement.textContent = `Olá! (ID: ${userId})`; // Ajuste como preferir
-              userGreetingElement.classList.remove('d-none'); // Torna visível
+          if (token && userGreetingElement && userId) {
+              userGreetingElement.textContent = `Olá! (ID: ${userId})`;
+              userGreetingElement.classList.remove('d-none');
           }
 
-          setupEventListeners(); // Configura os botões e inputs da página principal
+          setupEventListeners(); // Configura botões ANTES de decidir o que carregar
 
-          const savedSessionId = localStorage.getItem(SESSION_ID_STORAGE_KEY);
-          if (savedSessionId) {
-            console.log(`Encontrado session_id salvo: ${savedSessionId}`);
-            // Tenta carregar a sessão (já tem token, pois passou na verificação inicial)
-            await loadSessionData(savedSessionId);
+          // <<< VERIFICA SE VEIO DA PÁGINA DE CLIENTES >>>
+          const selectedClientId = sessionStorage.getItem('selectedClientId');
+          const selectedClientName = sessionStorage.getItem('selectedClientName');
+
+          if (selectedClientId) {
+              // Veio da página de clientes! Prepara para nova análise
+              console.log(`Cliente selecionado encontrado: ${selectedClientName} (ID: ${selectedClientId}). Preparando para nova análise.`);
+              sessionStorage.removeItem('selectedClientId'); // Limpa para não reutilizar
+              sessionStorage.removeItem('selectedClientName');
+
+              localStorage.removeItem(SESSION_ID_STORAGE_KEY); // Remove ID de sessão antiga do localStorage
+              AppState.currentSessionId = null; // Garante que o estado não tem ID antigo
+
+              resetCaseState(); // Limpa logs/histórico no AppState (NÃO limpa localStorage de novo)
+              resetUIForNewCase(); // Limpa a UI (logs, resposta final)
+              renderLogs();
+
+              // Define o cliente pendente para a próxima chamada do mainCaseFlow
+              AppState.pendingClientId = selectedClientId;
+              AppState.pendingClientName = selectedClientName; // Guarda nome para prompt
+
+              // Ajusta o placeholder da entrada do usuário
+              if (DOM.entradaUsuario) {
+                  DOM.entradaUsuario.value = '';
+                  const placeholderText = `Iniciando análise para o cliente: ${AppState.pendingClientName}.\n\nDescreva o caso ou a pergunta inicial:`;
+                  DOM.entradaUsuario.placeholder = placeholderText;
+                  DOM.entradaUsuario.focus();
+              }
+
           } else {
-            console.log("Nenhum session_id encontrado no localStorage.");
-            resetUIForNewCase(); // Garante que a UI está limpa
-            renderLogs(); // Renderiza (esconde) a área de logs
+              // Não veio da página de clientes, tenta carregar última sessão do localStorage
+              console.log("Nenhum cliente selecionado via sessionStorage. Verificando localStorage para sessão anterior...");
+              AppState.pendingClientId = null; // Garante que não há cliente pendente
+              AppState.pendingClientName = null;
+              const savedSessionId = localStorage.getItem(SESSION_ID_STORAGE_KEY);
+              if (savedSessionId) {
+                  console.log(`Encontrado session_id salvo: ${savedSessionId}. Carregando...`);
+                  await loadSessionData(savedSessionId); // Carrega sessão existente
+              } else {
+                  console.log("Nenhum session_id encontrado no localStorage. Pronto para nova análise genérica.");
+                  resetUIForNewCase();
+                  renderLogs();
+                  if(DOM.entradaUsuario) {
+                     DOM.entradaUsuario.placeholder = i18nInstance.t('caseHelp'); // Placeholder padrão
+                  }
+              }
           }
+          // <<< FIM DA VERIFICAÇÃO sessionStorage >>>
 
-          // Define o idioma inicial no select (após i18n carregar)
+          // Define o idioma inicial no select
           if(DOM.languageSelect) DOM.languageSelect.value = AppState.currentLanguage;
 
       } else {
-          // Estamos nas páginas de login/registro, não precisamos carregar sessões, etc.
-          // A lógica delas está no auth.js
           console.log(`Página de autenticação (${window.location.pathname}). Lógica principal pulada.`);
       }
   });
@@ -201,104 +229,112 @@ function checkIfSupervisorNeedsInput(supervisorText) {
  * Executa o fluxo principal de análise do caso, chamando os bots em sequência.
  * @param {string} initialInput A descrição inicial do caso fornecida pelo usuário.
  */
+// Em frontend/js/main.js
+
 async function mainCaseFlow(initialInput) {
   const t = i18nInstance.t.bind(i18nInstance);
-  const user_id = localStorage.getItem('user_id') || null; // Tenta obter user_id (do login futuro)
+  const user_id = localStorage.getItem('user_id');
 
-  let currentSessionId = AppState.currentSessionId;
+  let currentSessionId = AppState.currentSessionId; // Pode ser null se for nova sessão
+  const isNewSessionFlow = !currentSessionId; // É nova se não temos ID no estado
 
-  // Se não há ID de sessão ATIVO, inicia uma nova.
-  // Isso acontecerá na primeira vez ou se o usuário limpar os logs.
-  if (!currentSessionId) {
-    console.log("Nenhum session_id ativo. Iniciando nova sessão.");
-    resetCaseState();      // Limpa estado (logs, histórico, session ID) E localStorage
-    resetUIForNewCase();   // Limpa UI (exceto entrada do usuário que acabou de ser digitada)
-    renderLogs();          // Renderiza/esconde área de logs
+  // Pega o client_id pendente (se viemos da página de clientes)
+  const clientIdToLink = AppState.pendingClientId;
+  const clientNameContext = AppState.pendingClientName; // Pega o nome também
+  AppState.pendingClientId = null; // Limpa para não usar de novo
+  AppState.pendingClientName = null;
 
-    currentSessionId = `session_${Date.now()}_${user_id || 'anon'}`;
-    AppState.currentSessionId = currentSessionId;
-    localStorage.setItem(SESSION_ID_STORAGE_KEY, currentSessionId);
-    console.log(`Nova sessão iniciada e salva no localStorage: ${currentSessionId}`);
+  // --- Logica de Início da Sessão ---
+  if (isNewSessionFlow) {
+      console.log(`Iniciando nova sessão ${clientIdToLink ? 'para cliente ' + clientIdToLink : 'genérica'}.`);
+      // O ID da sessão será gerado pelo backend e retornado na primeira chamada.
+      // AppState.currentSessionId ainda é null.
+      // resetCaseState e resetUIForNewCase já foram chamados no DOMContentLoaded se veio de cliente,
+      // ou não são necessários se é a primeira interação na página.
+      renderLogs(); // Garante que logs estão visíveis (mesmo vazios)
   } else {
-    // Se JÁ EXISTE uma sessão, apenas continua usando o ID.
-    // Limpa a UI para mostrar os resultados da NOVA análise nesta sessão.
-    console.log(`Continuando análise na sessão existente: ${currentSessionId}`);
-    resetUIForNewCase();   // Limpa resultados anteriores na UI
-    renderLogs();          // Mostra logs existentes da sessão
+      console.log(`Continuando análise na sessão existente: ${currentSessionId}`);
+      resetUIForNewCase(); // Limpa só a UI de resultados anteriores
+      renderLogs(); // Mostra logs existentes
   }
 
-  toggleSpinner(true); // Mostra spinner e desabilita botões
+  toggleSpinner(true);
 
-  // Adiciona a entrada inicial do usuário ao histórico e logs da sessão atual
-  addToHistoryAndLog('usuario', initialInput);
+  // Monta o input inicial para o log local (pode incluir contexto do cliente)
+  let logInitialInput = initialInput;
+  if (isNewSessionFlow && clientNameContext) {
+      logInitialInput = `(Cliente: ${clientNameContext}) ${initialInput}`;
+  }
+  // Adiciona a entrada ao log/histórico local
+  addToHistoryAndLog('usuario', logInitialInput);
 
-  let medicalResponse = "";
-  let strategicResponse = "";
-  let technicalReport = "";
-  let finalReport = "";
-  let finalSupervisorResponse = "";
+  // --- Variaveis do fluxo ---
+  let medicalResponse = "", strategicResponse = "", technicalReport = "", finalReport = "", finalSupervisorResponse = "";
 
   try {
-    /* 1) Redator -> Relatório Técnico Inicial */
+    // 1) Redator -> Relatório Técnico Inicial
     addToHistoryAndLog('supervisor', t("supervisorRequestingRedactor"));
-    // Input para Redator: apenas a descrição inicial
-    technicalReport = await callBotAPI("redator", initialInput, currentSessionId, user_id);
+    // Input para o 1º bot: apenas a descrição do usuário (sem prefixo de cliente)
+    technicalReport = await callBotAPI(
+        "redator",
+        initialInput,       // Envia SÓ a descrição do caso
+        null,               // Envia null como session_id para indicar NOVA sessão
+        user_id,            // Passa user_id logado (backend usará se não for 'anon')
+        clientIdToLink      // Passa client_id SOMENTE nesta primeira chamada
+    );
+    // APÓS a primeira chamada, AppState.currentSessionId deve ter sido atualizado pela API
+    currentSessionId = AppState.currentSessionId; // Pega o ID da sessão (novo ou antigo)
+    if (!currentSessionId) { // Validação extra
+         throw new Error("Falha ao obter/definir o ID da sessão após a primeira chamada API.");
+    }
     addToHistoryAndLog('redator', technicalReport);
 
-    /* 2) Médico -> Avaliação (se necessário) */
+
+    // 2) Médico -> Avaliação (se necessário)
     const needsMedicalEval = containsKeywords(initialInput, Config.KEYWORDS_INCAPACIDADE);
     if (needsMedicalEval) {
       addToHistoryAndLog('supervisor', t("supervisorMedicalEvaluation"));
-      // Input para Médico: descrição inicial + relatório técnico
       const medicalInput = `Descrição do Caso:\n${initialInput}\n\nRelatório Técnico Inicial:\n${technicalReport}`;
+      // Chamadas seguintes USAM o currentSessionId e NÃO enviam client_id
       medicalResponse = await callBotAPI("medico", medicalInput, currentSessionId, user_id);
       addToHistoryAndLog('medico', medicalResponse);
     } else {
       addToHistoryAndLog('supervisor', t("supervisorNoMedical"));
-      medicalResponse = t('noMedicalEvaluationNeeded', 'N/A'); // Adiciona indicação no histórico
+      medicalResponse = t('noMedicalEvaluationNeeded', 'N/A');
     }
 
-    /* 3) Estrategista -> Estratégia */
+    // 3) Estrategista -> Estratégia
     addToHistoryAndLog('supervisor', t("supervisorConsultingStrategist"));
-    // Input para Estrategista: descrição + técnico + médico
     const strategistInput = `Descrição do Caso:\n${initialInput}\n\nRelatório Técnico:\n${technicalReport}\n\nAvaliação Médica:\n${medicalResponse || 'Nenhuma realizada'}`;
     strategicResponse = await callBotAPI("estrategista", strategistInput, currentSessionId, user_id);
     addToHistoryAndLog('estrategista', strategicResponse);
 
-    /* 4) Redator -> Relatório Final Consolidado */
+    // 4) Redator -> Relatório Final Consolidado
     addToHistoryAndLog('supervisor', t("supervisorRequestingFinalReport"));
-    // Input para Redator (Final): descrição + técnico + médico + estratégia
     const finalReportInput = `Gere um relatório final consolidado com base nas seguintes informações:\n\nDescrição Original:\n${initialInput}\n\nRelatório Técnico:\n${technicalReport}\n\nAvaliação Médica:\n${medicalResponse || 'Nenhuma realizada'}\n\nEstratégia Jurídica Sugerida:\n${strategicResponse}`;
     finalReport = await callBotAPI("redator", finalReportInput, currentSessionId, user_id);
-    // Adiciona prefixo claro ao log
     addToHistoryAndLog('redator', `RELATÓRIO FINAL CONSOLIDADO:\n${finalReport}`);
 
-    /* 5) Supervisor -> Resposta Final / Próximos Passos */
+    // 5) Supervisor -> Resposta Final / Próximos Passos
     addToHistoryAndLog('supervisor', t("supervisorConsolidating", "Consolidando análise para resposta final..."));
-    // Input para Supervisor (Final): TODO o contexto acumulado
     const supervisorInput = `CONTEXTO COMPLETO:\n${AppState.historicoConversa}\n\n---\nCom base em TODO o histórico acima (incluindo o relatório final consolidado do redator), forneça uma resposta final concisa e clara para o usuário, resumindo a análise e indicando os próximos passos ou a conclusão estratégica. Se precisar de mais informações, peça de forma explícita usando a frase '[PEDIDO_INFO]'.`;
     finalSupervisorResponse = await callBotAPI("supervisor", supervisorInput, currentSessionId, user_id);
-    AppState.ultimaMensagemSupervisor = finalSupervisorResponse; // Guarda a última resposta
-    addToHistoryAndLog('supervisor', finalSupervisorResponse); // Adiciona ao histórico
+    AppState.ultimaMensagemSupervisor = finalSupervisorResponse;
+    addToHistoryAndLog('supervisor', finalSupervisorResponse);
 
-    // Exibe a resposta final na UI
     showFinalResponse(finalSupervisorResponse);
-    updateElementVisibility(DOM.downloadPdfBtn, true); // Mostra botão de PDF
-
-    checkIfSupervisorNeedsInput(finalSupervisorResponse); // Verifica se pede mais info
+    updateElementVisibility(DOM.downloadPdfBtn, true);
+    checkIfSupervisorNeedsInput(finalSupervisorResponse);
 
   } catch (err) {
     console.error("Erro no fluxo principal:", err);
-    // Erros específicos já são mostrados por callBotAPI/getSessionHistory.
-    // Podemos mostrar um erro genérico aqui se a exceção não foi tratada lá.
-     if (!err.handled) { // Adicionar 'handled' property nos erros tratados pode ajudar
+     if (!err.handled) {
          showError('errorProcessingRequest', t('errorProcessingRequest', 'Ocorreu um erro inesperado ao processar o caso.'));
      }
   } finally {
-    toggleSpinner(false); // Esconde spinner e reabilita botões
+    toggleSpinner(false);
   }
-}
-
+} // Fim de mainCaseFlow
 
 /**
  * Lida com a execução manual de um bot específico.

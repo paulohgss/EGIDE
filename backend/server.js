@@ -132,6 +132,9 @@ app.post('/api/register', async (req, res) => {
 });
 
 // Endpoint de Login de Usuário
+// Em backend/server.js
+
+// Endpoint de Login de Usuário (MODIFICADO para incluir role no JWT)
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
    if (!username || !password) {
@@ -139,7 +142,8 @@ app.post('/api/login', async (req, res) => {
   }
 
   try {
-    const row = db.prepare('SELECT user_id, username, password FROM users WHERE username = ?').get(username); // Seleciona campos necessários
+    // <<< MODIFICAÇÃO 1: Seleciona também a coluna 'role' >>>
+    const row = db.prepare('SELECT user_id, username, password, role FROM users WHERE username = ?').get(username);
     if (!row) {
       console.log(`Tentativa de login falhou para usuário inexistente: ${username}`);
       return res.status(401).json({ error: 'Credenciais inválidas.' });
@@ -151,28 +155,273 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas.' });
     }
 
-    // Gera o token JWT
-    const tokenPayload = { user_id: row.user_id, username: row.username };
+    // <<< MODIFICAÇÃO 2: Inclui 'role' no payload do token >>>
+    const tokenPayload = {
+        user_id: row.user_id,
+        username: row.username,
+        role: row.role // Adiciona o papel do usuário ao token
+    };
     const jwtSecret = process.env.JWT_SECRET || 'sua_chave_secreta_muito_forte_aqui'; // Use variável de ambiente!
     const token = jwt.sign(tokenPayload, jwtSecret, { expiresIn: '1h' }); // Expira em 1 hora
 
-    console.log(`Login bem-sucedido para usuário: ${username}`);
-    res.json({ token, user_id: row.user_id, username: row.username }); // Retorna token e dados
+    console.log(`Login bem-sucedido para usuário: ${username} (Role: ${row.role})`);
+    // Retorna o token e os dados do usuário (incluindo o role para o frontend, opcionalmente)
+    res.json({ token, user_id: row.user_id, username: row.username, role: row.role });
 
   } catch (err) {
     console.error('Erro interno ao fazer login:', err);
     res.status(500).json({ error: 'Erro interno ao fazer login.' });
   }
-});
+}); // Fim do app.post('/api/login')
 
-// Endpoint Principal para Chamada dos Bots (Versão Completa e Corrigida)
+
+// Em backend/server.js
+
+// --- Endpoints de Clientes ---
+
+// Endpoint para Listar Clientes do Usuário Logado
+app.get('/api/clients', authenticateToken, (req, res) => {
+  const user = req.user; // Dados do usuário logado (do token)
+
+  // Verifica se o usuário está autenticado (token válido)
+  if (!user || !user.user_id) {
+    return res.status(401).json({ error: "Autenticação necessária para listar clientes." });
+  }
+
+  // Nota: Por enquanto, qualquer usuário logado (master ou auxiliar) pode listar
+  // os clientes associados ao seu user_id (que no caso de auxiliar, deveria ser
+  // filtrado pelos casos/clientes atribuídos, mas faremos isso depois).
+  // Para Masters, isso busca os clientes que ELES cadastraram.
+  console.log(`Buscando lista de clientes para user_id: ${user.user_id} (Role: ${user.role})`);
+
+  try {
+    // Busca clientes cujo user_id corresponde ao do usuário logado
+    const clients = db.prepare(`
+      SELECT client_id, name, cpf, dob, created_at
+      FROM clients
+      WHERE user_id = ?
+      ORDER BY name ASC
+    `).all(user.user_id);
+
+    console.log(`Encontrados ${clients.length} clientes para user_id: ${user.user_id}`);
+    res.json({ clients: clients || [] }); // Retorna a lista
+
+  } catch (dbError) {
+    console.error(`Erro de banco de dados ao listar clientes para user_id ${user.user_id}:`, dbError);
+    res.status(500).json({ error: 'Erro interno do servidor ao buscar clientes.' });
+  }
+}); // Fim do app.get('/api/clients')
+
+// Endpoint para Cadastrar um Novo Cliente
+app.post('/api/clients', authenticateToken, (req, res) => {
+  const user = req.user; // Dados do usuário logado
+
+  // Garante que o usuário está logado
+  if (!user || !user.user_id) {
+    return res.status(401).json({ error: "Autenticação necessária para cadastrar clientes." });
+  }
+
+  // TODO: Adicionar verificação de role aqui? Quem pode cadastrar? Master? Auxiliar?
+  // Por agora, vamos permitir que qualquer usuário logado cadastre (associado a ele mesmo).
+  console.log(`Usuário ${user.username} (ID: ${user.user_id}, Role: ${user.role}) tentando cadastrar cliente.`);
+
+  // Pega dados do cliente do corpo da requisição
+  const { name, cpf, dob } = req.body;
+
+  // Validações básicas (Backend)
+  if (!name || typeof name !== 'string' || name.trim() === '') {
+    return res.status(400).json({ error: 'Nome do cliente é obrigatório.' });
+  }
+  // Validação simples de formato de CPF (apenas números, 11 dígitos) - pode melhorar
+  const cleanedCpf = cpf ? cpf.replace(/\D/g, '') : null;
+  if (cleanedCpf && cleanedCpf.length !== 11) {
+      return res.status(400).json({ error: 'CPF inválido. Deve conter 11 dígitos.' });
+  }
+  // Validação simples de formato de Data de Nascimento (YYYY-MM-DD)
+   if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+       return res.status(400).json({ error: 'Formato inválido para Data de Nascimento (use AAAA-MM-DD).' });
+   }
+
+  console.log(`Tentando cadastrar cliente '${name}' para user_id: ${user.user_id}`);
+
+  try {
+    // Verifica se já existe cliente com mesmo CPF para este advogado
+    // A constraint UNIQUE no DB pegaria isso também, mas verificar antes dá um erro melhor (409)
+    if (cleanedCpf) {
+        // ATENÇÃO: A constraint UNIQUE no DB é GERAL. Um CPF só pode existir uma vez.
+        // A lógica abaixo verificava apenas para o MESMO advogado, o que está errado se CPF for UNIQUE geral.
+        // Vamos verificar na tabela inteira.
+        // const existingClient = db.prepare('SELECT client_id FROM clients WHERE cpf = ? AND user_id = ?').get(cleanedCpf, user.user_id);
+        const existingClient = db.prepare('SELECT client_id, user_id FROM clients WHERE cpf = ?').get(cleanedCpf);
+        if (existingClient) {
+            console.warn(`CPF ${cleanedCpf} já cadastrado para client_id ${existingClient.client_id} (advogado ${existingClient.user_id})`);
+            return res.status(409).json({ error: 'Este CPF já está cadastrado no sistema.' }); // 409 Conflict
+        }
+    }
+
+    // Gera um ID único para o cliente
+    const clientId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    // Insere o novo cliente, associando ao user_id do advogado logado
+    const stmt = db.prepare(`
+      INSERT INTO clients (client_id, user_id, name, cpf, dob)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    // Salva o CPF limpo (só números) ou null
+    stmt.run(clientId, user.user_id, name.trim(), cleanedCpf, dob || null);
+
+    console.log(`Cliente cadastrado: ${name} (ID: ${clientId}) para user_id: ${user.user_id}`);
+
+    // Retorna sucesso com os dados do cliente criado
+    res.status(201).json({
+      success: true,
+      message: 'Cliente cadastrado com sucesso!',
+      client: {
+          client_id: clientId,
+          user_id: user.user_id,
+          name: name.trim(),
+          cpf: cleanedCpf,
+          dob: dob || null
+      }
+    }); // 201 Created
+
+  } catch (dbError) {
+     // Verifica se o erro é de UNIQUE constraint (embora tenhamos checado antes)
+     if (dbError.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+         console.error(`Erro de constraint UNIQUE ao cadastrar cliente (CPF: ${cleanedCpf}):`, dbError.message);
+         return res.status(409).json({ error: 'Erro: CPF já existe.' });
+     }
+    console.error(`Erro de banco de dados ao cadastrar cliente para user_id ${user.user_id}:`, dbError);
+    res.status(500).json({ error: 'Erro interno do servidor ao cadastrar cliente.' });
+  }
+}); // Fim do app.post('/api/clients')
+
+// Endpoint para Master Criar um Assistente
+app.post('/api/assistants', authenticateToken, async (req, res) => {
+  // 1. Verifica se quem está chamando é um Master
+  const masterUser = req.user; // Dados do usuário logado (do token)
+  if (!masterUser || masterUser.role !== 'master') {
+    console.warn(`Tentativa não autorizada de criar assistente por user_id: ${masterUser?.user_id} com role: ${masterUser?.role}`);
+    return res.status(403).json({ error: "Apenas usuários 'master' podem criar assistentes." }); // 403 Forbidden
+  }
+
+  // 2. Pega os dados do novo assistente do corpo da requisição
+  const { username: assistantUsername, password: assistantPassword } = req.body;
+
+  // 3. Validações básicas dos dados recebidos
+  if (!assistantUsername || !assistantPassword) {
+    return res.status(400).json({ error: 'Nome de usuário e senha do assistente são obrigatórios.' });
+  }
+  if (assistantPassword.length < 6) {
+    return res.status(400).json({ error: 'Senha do assistente deve ter pelo menos 6 caracteres.' });
+  }
+  // Poderíamos adicionar mais validações no username aqui (caracteres permitidos, etc.)
+
+  try {
+    // 4. Verifica se o username do assistente já existe
+    const existingUser = db.prepare('SELECT user_id FROM users WHERE username = ?').get(assistantUsername);
+    if (existingUser) {
+      console.log(`Tentativa de criar assistente falhou: usuário ${assistantUsername} já existe.`);
+      return res.status(409).json({ error: 'Nome de usuário já está em uso.' }); // 409 Conflict
+    }
+
+    // 5. Cria o hash da senha do assistente
+    const hashedPassword = await bcrypt.hash(assistantPassword, 10);
+
+    // 6. Gera um ID único para o assistente
+    const assistantUserId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    // 7. Insere o novo assistente no banco
+    const stmt = db.prepare(`
+      INSERT INTO users (user_id, username, password, role, master_user_id)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    // Define role como 'auxiliar' e master_user_id como o ID do Master logado
+    stmt.run(assistantUserId, assistantUsername, hashedPassword, 'auxiliar', masterUser.user_id);
+
+    console.log(`Assistente criado: ${assistantUsername} (ID: ${assistantUserId}) pelo Master: ${masterUser.username} (ID: ${masterUser.user_id})`);
+
+    // 8. Retorna sucesso
+    // Não retorna a senha, claro. Retorna dados úteis para o frontend.
+    res.status(201).json({
+        success: true,
+        message: 'Assistente criado com sucesso.',
+        assistant: {
+            user_id: assistantUserId,
+            username: assistantUsername,
+            role: 'auxiliar',
+            master_user_id: masterUser.user_id
+        }
+     }); // 201 Created
+
+  } catch (err) {
+    console.error(`Erro interno ao criar assistente pelo Master ${masterUser.user_id}:`, err);
+    res.status(500).json({ error: 'Erro interno ao criar assistente.' });
+  }
+}); // Fim do app.post('/api/assistants')
+
+
+// Em backend/server.js (adicionar após POST /api/assistants)
+
+// Endpoint para Master Listar seus Assistentes
+app.get('/api/assistants', authenticateToken, (req, res) => {
+  // 1. Verifica se quem está chamando é um Master
+  const masterUser = req.user;
+  if (!masterUser || masterUser.role !== 'master') {
+    // Retorna 403 mesmo que não seja estritamente necessário para GET, por consistência
+    // Ou poderia retornar um array vazio? Decidimos retornar 403.
+    console.warn(`Tentativa não autorizada de listar assistentes por user_id: ${masterUser?.user_id} com role: ${masterUser?.role}`);
+    return res.status(403).json({ error: "Apenas usuários 'master' podem listar assistentes." });
+  }
+
+  const masterUserId = masterUser.user_id;
+  console.log(`Buscando lista de assistentes para Master ID: ${masterUserId}`);
+
+  try {
+    // 2. Busca todos os usuários que são 'auxiliar' E têm o master_user_id correspondente
+    const assistants = db.prepare(`
+      SELECT user_id, username, role, master_user_id, created_at
+      FROM users
+      WHERE role = 'auxiliar' AND master_user_id = ?
+      ORDER BY created_at DESC
+    `).all(masterUserId);
+
+    console.log(`Encontrados ${assistants.length} assistentes para Master ID: ${masterUserId}`);
+
+    // 3. Retorna a lista (pode estar vazia)
+    res.json({ assistants: assistants || [] }); // Garante que é um array
+
+  } catch (dbError) {
+    console.error(`Erro de banco de dados ao listar assistentes para Master ID ${masterUserId}:`, dbError);
+    res.status(500).json({ error: 'Erro interno do servidor ao buscar assistentes.' });
+  }
+}); // Fim do app.get('/api/assistants')
+
+
+
+// Em backend/server.js
+
+// Endpoint Principal para Chamada dos Bots (MODIFICADO para registrar na tabela sessions)
+
+// Em backend/server.js -> DENTRO do endpoint app.post('/api/call-bot', ...)
+
+// Endpoint Principal para Chamada dos Bots (MODIFICADO para registrar na tabela sessions)
 app.post('/api/call-bot', authenticateToken, async (req, res) => {
-  const { role, message, session_id } = req.body;
-  // Usa o user_id do token verificado, se existir. Senão, será undefined.
-  const user_id = req.user?.user_id;
+  // <<< MODIFICAÇÃO 1: Pega client_id do corpo também >>>
+  const { role, message, session_id, client_id } = req.body;
+  const user = req.user; // Dados do usuário logado (pode ser undefined se anônimo)
+  const user_id = user?.user_id; // Pega o ID do usuário logado, se houver
 
-  console.log('Requisição /api/call-bot:', { role, message: message?.substring(0, 50) + '...', session_id, user_id: user_id || 'Não fornecido (anônimo?)' });
+  // Log aprimorado
+  console.log('Requisição /api/call-bot:', {
+      role,
+      message: message?.substring(0, 50) + '...',
+      session_id: session_id || '(Nova Sessão)', // Indica se é nova
+      client_id: client_id || '(Nenhum)', // Mostra client_id se veio
+      user_id: user_id || 'Não fornecido (anônimo?)'
+  });
 
+  // Validações básicas
   if (!role || !message) {
     return res.status(400).json({ error: 'Parâmetros "role" e "message" são obrigatórios.' });
   }
@@ -181,106 +430,156 @@ app.post('/api/call-bot', authenticateToken, async (req, res) => {
     return res.status(500).json({ error: "Erro de configuração do servidor." });
   }
 
-  // Define o ID da sessão e o ID do usuário a ser salvo no DB ('anon' se não houver user_id)
-  // Se o frontend enviar um session_id, usamos ele; senão, geramos um novo.
+  // Define o ID da sessão e o ID do usuário efetivo para salvar no DB
+  const isNewSession = !session_id; // Verifica se é uma nova sessão
   const current_session_id = session_id || `session_${Date.now()}_${user_id || 'anon'}`;
-  const effective_user_id = user_id || 'anon'; // Usaremos 'anon' para salvar se não houver usuário logado
+  const effective_user_id = user_id || 'anon';
+
+  // <<< MODIFICAÇÃO 2: Validação do client_id se for nova sessão >>>
+  if (isNewSession && !client_id) {
+      // Se é uma nova sessão vinda do fluxo principal (index.html direto), não terá client_id.
+      // Se veio de clients.html, DEVE ter client_id.
+      // Poderíamos retornar erro se veio de clients.html sem ID, mas como distinguir?
+      // Por enquanto, apenas avisamos se for nova E não tiver cliente.
+      console.warn(`Iniciando NOVA sessão (${current_session_id}) sem um client_id associado.`);
+  } else if (isNewSession && client_id) {
+       console.log(`Nova sessão (${current_session_id}) será associada ao cliente ${client_id}`);
+  }
 
   try {
     // 1. Obtém o prompt do sistema
     const finalSystemPrompt = getSystemPrompt(role);
-    if (finalSystemPrompt === 'Você é um assistente útil.') {
-      console.warn(`Usando prompt padrão para role "${role}". Verifique o arquivo base correspondente.`);
-    }
-    console.log(`Enviando para OpenAI (Role: ${role}). Prompt System (início): ${finalSystemPrompt.substring(0, 100)}...`);
+    // ... (logs de aviso e envio para OpenAI) ...
+     console.log(`Enviando para OpenAI (Role: ${role}). Prompt System (início): ${finalSystemPrompt.substring(0, 100)}...`);
 
     // 2. Faz a chamada para a API da OpenAI
     const response = await axios.post(
-      process.env.OPENAI_API_ENDPOINT || 'https://api.openai.com/v1/chat/completions',
-      {
-        model: process.env.OPENAI_MODEL || 'gpt-4o', // Modelo atualizado (exemplo)
-        messages: [
-          { role: 'system', content: finalSystemPrompt },
-          { role: 'user', content: message }
-        ]
-        // Adicione outros parâmetros aqui se necessário (temperature, max_tokens, etc.)
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 90000 // Timeout de 90 segundos
-      }
-    );
-
+       process.env.OPENAI_API_ENDPOINT || 'https://api.openai.com/v1/chat/completions',
+       {
+         model: process.env.OPENAI_MODEL || 'gpt-4o',
+         messages: [
+           { role: 'system', content: finalSystemPrompt },
+           { role: 'user', content: message }
+         ]
+       },
+       {
+         headers: {
+           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+           'Content-Type': 'application/json'
+         },
+         timeout: 90000
+       }
+     );
     console.log(`Resposta recebida da OpenAI (Role: ${role}). Status: ${response.status}`);
 
-    // 3. Lógica de Salvamento do Histórico (CORRIGIDA para salvar anônimos)
+    // <<< MODIFICAÇÃO 3: Inserção na tabela SESSIONS se for nova sessão E tiver client_id >>>
+    if (isNewSession && client_id) {
+        try {
+            // Garante que o cliente existe antes de tentar inserir a sessão
+            const clientCheck = db.prepare('SELECT client_id FROM clients WHERE client_id = ? AND user_id = ?').get(client_id, effective_user_id);
+            if (!clientCheck) {
+                 // Cliente não encontrado ou não pertence a este usuário! Retorna erro.
+                 console.error(`Erro ao registrar sessão: Cliente ${client_id} não encontrado para usuário ${effective_user_id}`);
+                 // Usamos 404 ou 400? 404 faz sentido pois o recurso referenciado não existe.
+                 return res.status(404).json({ error: `Cliente com ID ${client_id} não encontrado.` });
+            }
+
+            // Cliente existe, insere na tabela sessions
+            const sessionStmt = db.prepare(`
+                INSERT INTO sessions (session_id, user_id, client_id, last_updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            `);
+            // Usamos effective_user_id que pode ser 'anon' ou o ID real
+            sessionStmt.run(current_session_id, effective_user_id, client_id);
+            console.log(`Registro criado na tabela 'sessions' para session_id: ${current_session_id}, client_id: ${client_id}`);
+
+        } catch (sessionDbError) {
+            console.error(`ERRO AO REGISTRAR SESSÃO na tabela 'sessions' (session: ${current_session_id}, client: ${client_id}):`, sessionDbError);
+            // Se erro for constraint (PK duplicada, FK inválida), retorna 409 ou 500?
+            if (sessionDbError.code?.startsWith('SQLITE_CONSTRAINT')) {
+                 return res.status(409).json({ error: "Erro ao registrar sessão devido a dados inconsistentes." });
+             }
+            // Outros erros, retorna 500
+            return res.status(500).json({ error: "Erro interno ao registrar a sessão." });
+        }
+    }
+
+    // 4. Lógica de Salvamento do Histórico (session_history)
     if (response.data.choices && response.data.choices.length > 0 && response.data.choices[0].message) {
       const reply = response.data.choices[0].message.content.trim();
       try {
-        // Busca histórico anterior SOMENTE pelo session_id (chave primária)
         const row = db.prepare('SELECT history FROM session_history WHERE session_id = ?').get(current_session_id);
         const currentHistory = row ? JSON.parse(row.history) : [];
-
-        // Prepara as novas entradas
         const interaction = { type: 'user_message_to_bot', role_called: role, content: message, timestamp: new Date().toISOString() };
         const botResponse = { type: 'bot_response', role: role, content: reply, timestamp: new Date().toISOString() };
         const updatedHistory = [...currentHistory, interaction, botResponse];
 
-        // Salva no banco usando o effective_user_id ('anon' se for o caso)
+        // Salva na session_history
         db.prepare('INSERT OR REPLACE INTO session_history (session_id, user_id, history) VALUES (?, ?, ?)').run(
           current_session_id, effective_user_id, JSON.stringify(updatedHistory)
         );
         console.log(`Histórico salvo/atualizado para session_id: ${current_session_id}, effective_user_id: ${effective_user_id}`);
 
+        // Atualiza last_updated_at na tabela sessions, se existir registro lá
+        if (client_id || !isNewSession) { // Se tem cliente ou não é nova, a sessão DEVE existir em 'sessions'
+            try {
+                // Usamos UPDATE simples, ele não fará nada se o session_id não existir na tabela sessions
+                db.prepare('UPDATE sessions SET last_updated_at = CURRENT_TIMESTAMP WHERE session_id = ?')
+                  .run(current_session_id);
+            } catch (updateErr) {
+                // Loga o erro mas não impede a resposta principal
+                console.error(`Erro ao atualizar last_updated_at para sessão ${current_session_id}:`, updateErr);
+            }
+        }
+
       } catch (dbError) {
-        console.error(`Erro ao salvar histórico no DB (session: ${current_session_id}, user: ${effective_user_id}):`, dbError);
-        // Considerar relançar o erro se a falha no DB for crítica
-        // throw dbError;
+        console.error(`Erro ao salvar histórico na tabela 'session_history' (session: ${current_session_id}, user: ${effective_user_id}):`, dbError);
+        // Considerar retornar erro 500 aqui, pois a falha em salvar o histórico é crítica.
+        return res.status(500).json({ error: "Erro interno ao salvar histórico da conversa." });
       }
     } else {
       console.warn(`Histórico não salvo (session: ${current_session_id}): Resposta da OpenAI inválida ou vazia.`, response.data);
+      // Mesmo se a resposta for inválida, talvez devêssemos retornar a resposta (sem salvar)?
+      // Ou retornar um erro específico? Por enquanto, continua e envia a resposta vazia/inválida.
     }
 
-    // 4. Prepara e envia a resposta para o Frontend
+    // 5. Prepara e envia a resposta para o Frontend
     const responseData = { ...response.data };
-    // Adiciona o session_id gerado se ele for diferente do recebido (indicando nova sessão)
-    if (current_session_id !== session_id) {
+    if (isNewSession) { // Envia o session_id gerado APENAS se for uma nova sessão
       responseData.generated_session_id = current_session_id;
       console.log(`Novo session_id gerado e retornado: ${current_session_id}`);
     }
-    res.json(responseData); // Envia a resposta da OpenAI (e talvez o novo session_id)
+    res.json(responseData);
 
   } catch (error) { // Trata erros da chamada axios ou erros relançados do DB
+    // ... (código do catch continua igual ao da versão completa anterior) ...
     let statusCode = 500;
     let errorMessage = 'Erro interno do servidor ao processar a requisição.';
-
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
       console.error('Erro: Timeout na chamada para OpenAI.');
-      statusCode = 504; // Gateway Timeout
+      statusCode = 504;
       errorMessage = 'O serviço de IA demorou muito para responder.';
-    } else if (error.response) { // Erro da API OpenAI (resposta recebida com status != 2xx)
+    } else if (error.response) { // Erro da API OpenAI
       console.error(`Erro da API OpenAI: Status ${error.response.status}`, error.response.data);
-      statusCode = error.response.status; // Usa o status code da OpenAI
-      // Tenta pegar mensagem de erro da OpenAI, senão usa uma genérica
+      statusCode = error.response.status;
       errorMessage = error.response.data?.error?.message || `Erro ${statusCode} do serviço de IA.`;
-      // Mensagens mais específicas (opcional)
       if (statusCode === 401) errorMessage = "Chave da API OpenAI inválida ou não autorizada.";
       if (statusCode === 429) errorMessage = "Limite de requisições da API OpenAI atingido.";
-      if (statusCode === 400) errorMessage = "Requisição inválida para a API OpenAI (verifique o prompt/modelo).";
-
-    } else if (error.request) { // Erro de rede (sem resposta)
+      if (statusCode === 400) errorMessage = "Requisição inválida para a API OpenAI.";
+    } else if (error.request) { // Erro de rede
       console.error('Erro de rede ao chamar OpenAI (sem resposta):', error.message);
-      statusCode = 504; // Gateway Timeout
+      statusCode = 504;
       errorMessage = 'Não foi possível conectar ao serviço de IA.';
-    } else { // Outro erro (configuração, DB relançado, etc.)
+    } else { // Outro erro
       console.error('Erro interno não esperado no backend:', error.message, error.stack);
       errorMessage = `Erro inesperado no servidor.`;
     }
-    // Envia a resposta de erro padronizada para o frontend
-    res.status(statusCode).json({ error: errorMessage, details: error.message }); // Inclui detalhe do erro original
+    // Verifica se a resposta já foi enviada (ex: erro de cliente não encontrado)
+    if (!res.headersSent) {
+      res.status(statusCode).json({ error: errorMessage, details: error.message });
+    } else {
+        console.error("Tentativa de enviar resposta de erro após headers já terem sido enviados.");
+    }
   }
 }); // Fim do app.post('/api/call-bot')
 

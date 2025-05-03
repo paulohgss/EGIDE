@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerenciar Clientes - Égide</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .container { max-width: 960px; }
+    .client-actions button { margin-left: 5px; } /* Espaçamento botões de ação */
+  </style>
+</head>
+<body>
+  <div class="container my-4">
+    <header class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <h1 id="manage-clients-title">Gerenciar Clientes</h1>
+        <div>
+             <a href="/" id="back-to-main-clients" class="btn btn-outline-secondary btn-sm">Voltar ao Início</a>
+             <a href="#" id="logout-link-clients" class="btn btn-outline-danger btn-sm ms-2">Sair</a>
+        </div>
+    </header>
+
+    <section id="add-client-section" class="mb-5">
+      <h2 class="mb-3">Adicionar Novo Cliente</h2>
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <form id="add-client-form" novalidate>
+            <div id="client-message" class="alert d-none mb-3" role="alert"></div>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label for="client-name" class="form-label">Nome Completo *</label>
+                <input type="text" class="form-control" id="client-name" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="client-cpf" class="form-label">CPF</label>
+                <input type="text" class="form-control" id="client-cpf" placeholder="Somente números">
+              </div>
+            </div>
+            <div class="row">
+               <div class="col-md-6 mb-3">
+                <label for="client-dob" class="form-label">Data de Nascimento</label>
+                <input type="date" class="form-control" id="client-dob" placeholder="AAAA-MM-DD">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <span id="add-client-btn-text">Adicionar Cliente</span>
+              <span id="add-client-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="list-clients-section">
+        <h2 class="mb-3">Clientes Cadastrados</h2>
+        <div id="clients-loading" class="text-center d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+        </div>
+        <div id="clients-error" class="alert alert-warning d-none" role="alert">
+            Não foi possível carregar a lista de clientes.
+        </div>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th scope="col">Nome</th>
+                        <th scope="col">CPF</th>
+                        <th scope="col">Data Nasc.</th>
+                        <th scope="col">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="clients-table-body">
+                    </tbody>
+            </table>
+            <p id="no-clients-message" class="text-muted d-none">Nenhum cliente cadastrado ainda.</p>
+        </div>
+    </section>
+
+  </div>
+
+  <script type="module" src="js/clients.js"></script>
+
+</body>
+</html>

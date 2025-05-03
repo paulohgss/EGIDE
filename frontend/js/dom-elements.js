@@ -1,43 +1,79 @@
-// dom-elements.js - Seletores do DOM centralizados
-
 export const DOM = {
-  body: document.body,
-  languageSelect: document.getElementById('languageSelect'),
-  themeToggle: document.getElementById('themeToggle'),
-  caseForm: document.getElementById('caseForm'),
-  entradaUsuario: document.getElementById('entradaUsuario'),
-  errorMessage: document.getElementById('errorMessage'),
-  submitButton: document.getElementById('submitButton'),
-  submitSpinner: document.querySelector('#submitButton .loading-spinner'),
-  manualActionButtons: document.querySelectorAll('[data-bot-role]'), // Para ações manuais
-  respostaFinal: document.getElementById('respostaFinal'),
-  filterSelect: document.getElementById('filterSelect'),
-  clearLogsBtn: document.getElementById('clearLogsBtn'),
-  exportLogsBtn: document.getElementById('exportLogsBtn'),
-  logsIndividuais: document.getElementById('logsIndividuais'),
-  downloadPdfBtn: document.getElementById('downloadPdfBtn'),
-  respostaUsuarioBox: document.getElementById('respostaUsuarioBox'),
-  respostaUsuarioInput: document.getElementById('respostaUsuarioInput'),
-  respondSupervisorBtn: document.getElementById('respondSupervisorBtn'),
-
-  // Agrupamento para facilitar atualização de i18n
+  body: null,
+  languageSelect: null,
+  themeToggle: null,
+  caseForm: null,
+  entradaUsuario: null,
+  errorMessage: null,
+  submitButton: null,
+  submitSpinner: null,
+  manualActionButtons: null,
+  respostaFinal: null,
+  filterSelect: null,
+  clearLogsBtn: null,
+  exportLogsBtn: null,
+  logsIndividuais: null,
+  downloadPdfBtn: null,
+  respostaUsuarioBox: null,
+  respostaUsuarioInput: null,
+  respondSupervisorBtn: null,
   i18nElements: {
-    title: document.getElementById('title'),
-    caseLabel: document.getElementById('caseLabel'),
-    caseHelp: document.getElementById('caseHelp'),
-    submitText: document.getElementById('submitText'),
-    manualActions: document.getElementById('manualActions'),
-    manualRedator: document.getElementById('manualRedator'), // Botão inteiro
-    manualMedico: document.getElementById('manualMedico'),
-    manualEstrategista: document.getElementById('manualEstrategista'),
-    manualSupervisor: document.getElementById('manualSupervisor'),
-    clearLogs: document.getElementById('clearLogs'), // Span dentro do botão
-    exportLogs: document.getElementById('exportLogs'), // Span dentro do botão
-    filterLabel: document.getElementById('filterLabel'),
-    filterAll: document.getElementById('filterAll'), // Option dentro do select
-    downloadPdf: document.getElementById('downloadPdf'), // Span dentro do botão
-    supervisorRequest: document.getElementById('supervisorRequest'), // Título da caixa
-    responseHelp: document.getElementById('responseHelp'), // Texto de ajuda do input
-    respondSupervisor: document.getElementById('respondSupervisor'), // Span dentro do botão
+      title: null,
+      caseLabel: null,
+      caseHelp: null,
+      submitText: null,
+      manualActions: null,
+      manualRedator: null,
+      manualMedico: null,
+      manualEstrategista: null,
+      manualSupervisor: null,
+      clearLogs: null,
+      exportLogs: null,
+      filterLabel: null,
+      filterAll: null,
+      downloadPdf: null,
+      supervisorRequest: null,
+      responseHelp: null,
+      respondSupervisor: null,
+  },
+
+  // Método para inicializar os elementos
+  initialize() {
+      this.body = document.body;
+      this.languageSelect = document.getElementById('languageSelect');
+      this.themeToggle = document.getElementById('themeToggle');
+      this.caseForm = document.getElementById('caseForm');
+      this.entradaUsuario = document.getElementById('entradaUsuario');
+      this.errorMessage = document.getElementById('errorMessage');
+      this.submitButton = document.getElementById('submitButton');
+      this.submitSpinner = document.querySelector('#submitButton .loading-spinner');
+      this.manualActionButtons = document.querySelectorAll('[data-bot-role]');
+      this.respostaFinal = document.getElementById('respostaFinal');
+      this.filterSelect = document.getElementById('filterSelect');
+      this.clearLogsBtn = document.getElementById('clearLogsBtn');
+      this.exportLogsBtn = document.getElementById('exportLogsBtn');
+      this.logsIndividuais = document.getElementById('logsIndividuais');
+      this.downloadPdfBtn = document.getElementById('downloadPdfBtn');
+      this.respostaUsuarioBox = document.getElementById('respostaUsuarioBox');
+      this.respostaUsuarioInput = document.getElementById('respostaUsuarioInput');
+      this.respondSupervisorBtn = document.getElementById('respondSupervisorBtn');
+
+      this.i18nElements.title = document.getElementById('title');
+      this.i18nElements.caseLabel = document.getElementById('caseLabel');
+      this.i18nElements.caseHelp = document.getElementById('caseHelp');
+      this.i18nElements.submitText = document.getElementById('submitText');
+      this.i18nElements.manualActions = document.getElementById('manualActions');
+      this.i18nElements.manualRedator = document.getElementById('manualRedator');
+      this.i18nElements.manualMedico = document.getElementById('manualMedico');
+      this.i18nElements.manualEstrategista = document.getElementById('manualEstrategista');
+      this.i18nElements.manualSupervisor = document.getElementById('manualSupervisor');
+      this.i18nElements.clearLogs = document.getElementById('clearLogs');
+      this.i18nElements.exportLogs = document.getElementById('exportLogs');
+      this.i18nElements.filterLabel = document.getElementById('filterLabel');
+      this.i18nElements.filterAll = document.getElementById('filterAll');
+      this.i18nElements.downloadPdf = document.getElementById('downloadPdf');
+      this.i18nElements.supervisorRequest = document.getElementById('supervisorRequest');
+      this.i18nElements.responseHelp = document.getElementById('responseHelp');
+      this.i18nElements.respondSupervisor = document.getElementById('respondSupervisor');
   }
 };

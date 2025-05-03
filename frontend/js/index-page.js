@@ -1,41 +1,15 @@
-// frontend/js/index-page.js
-
-// Importa a chave do localStorage para limpar no logout (boa prática)
 import { SESSION_ID_STORAGE_KEY } from './state.js';
+import { getClients, getAssistants } from './api.js';
+import { DOM } from './dom-elements.js';
+import { initializeTheme, toggleTheme } from './theme.js';
 
-/**
- * Lida com o evento de clique no link/botão de logout.
- */
-function handleLogout() {
-    console.log("Executando logout do painel principal...");
-    // Remove credenciais e dados de sessão do localStorage
-    localStorage.removeItem('token');
-    localStorage.removeItem('user_id');
-    localStorage.removeItem(SESSION_ID_STORAGE_KEY); // Remove o ID da última sessão também
-
-    // Redireciona para a página de login
-    window.location.href = 'login.html';
-}
-
-/**
- * Decodifica o payload de um token JWT (sem verificar a assinatura).
- * CUIDADO: Use isso apenas para ler dados públicos como 'username' ou 'role'
- * após a autenticação já ter sido validada pelo backend ou pelo middleware.
- * NÃO use para validação de segurança.
- * @param {string} token O token JWT.
- * @returns {object | null} O payload decodificado ou null se falhar.
- */
 function decodeJwtPayload(token) {
     if (!token) return null;
     try {
-        // O payload é a segunda parte do token (entre os pontos)
         const base64Url = token.split('.')[1];
-        // Substitui caracteres para base64 padrão e decodifica
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => 
+            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
         return JSON.parse(jsonPayload);
     } catch (e) {
         console.error("Erro ao decodificar payload do JWT:", e);
@@ -43,71 +17,163 @@ function decodeJwtPayload(token) {
     }
 }
 
+function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') return '';
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;") // Linha 26 corrigida
+        .replace(/'/g, "&#039;");
+}
 
-// --- Inicialização da Página ---
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("Inicializando painel principal (index.html)...");
+function showError(message) {
+    const notificationsList = document.getElementById('notifications-list');
+    if (notificationsList) {
+        notificationsList.textContent = message;
+        notificationsList.classList.remove('alert-info');
+        notificationsList.classList.add('alert-danger');
+    }
+}
 
-    // 1. Verificar autenticação
+async function renderRecentClients() {
+    const tableBody = document.getElementById('recent-clients-table-body');
+    const loading = document.getElementById('clients-loading');
+    const error = document.getElementById('clients-error');
+    const noClients = document.getElementById('no-clients-message');
+
+    if (!tableBody) return;
+
+    loading.classList.remove('d-none');
+    error.classList.add('d-none');
+    noClients.classList.add('d-none');
+
+    try {
+        const clients = await getClients();
+        tableBody.innerHTML = '';
+
+        if (clients.length === 0) {
+            noClients.classList.remove('d-none');
+        } else {
+            clients.slice(0, 5).forEach(client => {
+                const row = tableBody.insertRow();
+                const formattedCpf = client.cpf ?
+                    client.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : 'N/A';
+                row.innerHTML = `
+                    <td>${escapeHtml(client.name)}</td>
+                    <td>${escapeHtml(formattedCpf)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-success start-analysis-btn me-2" 
+                                data-client-id="${escapeHtml(client.client_id)}" 
+                                data-client-name="${escapeHtml(client.name)}">
+                            Iniciar Análise
+                        </button>
+                        <a href="client-sessions.html?clientId=${escapeHtml(client.client_id)}&clientName=${encodeURIComponent(client.name)}" 
+                           class="btn btn-sm btn-info">
+                            Ver Histórico
+                        </a>
+                    </td>
+                `;
+            });
+            tableBody.querySelectorAll('.start-analysis-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const clientId = button.dataset.clientId;
+                    const clientName = button.dataset.clientName;
+                    sessionStorage.setItem('selectedClientId', clientId);
+                    sessionStorage.setItem('selectedClientName', clientName);
+                    sessionStorage.setItem('cameFrom', 'index');
+                    window.location.href = 'chat.html';
+                });
+            });
+        }
+    } catch (error) {
+        console.error("Erro ao carregar clientes:", error);
+        error.classList.remove('d-none');
+        noClients.classList.add('d-none');
+    } finally {
+        loading.classList.add('d-none');
+    }
+}
+
+async function renderAssistantsSummary() {
+    const summarySection = document.getElementById('assistants-summary');
+    const countElement = document.getElementById('assistants-count');
+    if (!summarySection || !countElement) return;
+
+    try {
+        const assistants = await getAssistants();
+        countElement.innerHTML = `Você tem ${assistants.length} assistente(s) cadastrado(s). 
+            <a href="assistants.html" class="text-primary">Ver todos</a>.`;
+        summarySection.classList.remove('d-none');
+    } catch (error) {
+        console.error("Erro ao carregar assistentes:", error);
+        summarySection.classList.add('d-none');
+    }
+}
+
+function handleLogout() {
+    console.log("Executando logout do painel principal...");
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem(SESSION_ID_STORAGE_KEY);
+    window.location.href = 'login.html';
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log("Inicializando painel principal...");
+
+    // Inicializa os elementos DOM antes de qualquer manipulação
+    DOM.initialize();
+    console.log("Elementos DOM inicializados:", {
+        bodyExists: !!DOM.body,
+        userGreetingExists: !!document.getElementById('user-greeting')
+    });
+
+    // Agora que o DOM está inicializado, podemos chamar initializeTheme
+    initializeTheme();
+
     const token = localStorage.getItem('token');
     if (!token) {
         console.log("Nenhum token encontrado, redirecionando para login.");
         window.location.href = 'login.html';
-        return; // Impede o resto de rodar
+        return;
     }
 
-    // 2. Exibir saudação (opcional, pega do localStorage ou decodifica do token)
     const userGreetingElement = document.getElementById('user-greeting');
-    // Tenta pegar o username do payload do token para uma saudação mais amigável
     const payload = decodeJwtPayload(token);
-    const username = payload?.username; // Usa o username do token se disponível
+    const username = payload?.username;
+    const userRole = payload?.role;
 
     if (userGreetingElement) {
-        if (username) {
-             userGreetingElement.textContent = `Olá, ${escapeHtml(username)}!`;
-        } else {
-            // Fallback para o user_id se não conseguir decodificar ou não tiver username
-            const userId = localStorage.getItem('user_id');
-            userGreetingElement.textContent = `Olá! (ID: ${userId || 'Usuário'})`;
-        }
-         userGreetingElement.classList.remove('d-none');
+        userGreetingElement.textContent = username ? 
+            `Olá, ${escapeHtml(username)}!` : 
+            `Olá! (ID: ${localStorage.getItem('user_id') || 'Usuário'})`;
+        userGreetingElement.classList.remove('d-none');
     }
 
-    // 3. Adicionar listener ao botão de logout
+    const manageAssistantsCard = document.getElementById('manage-assistants-card');
+    if (manageAssistantsCard && userRole !== 'master') {
+        console.log("Usuário não é master, escondendo opção 'Gerenciar Assistentes'.");
+        manageAssistantsCard.classList.add('d-none');
+    }
+
     const logoutLink = document.getElementById('logout-link');
     if (logoutLink) {
         logoutLink.addEventListener('click', (e) => {
-            e.preventDefault(); // Previne a ação padrão do link '#'
+            e.preventDefault();
             handleLogout();
         });
-    } else {
-        console.warn("Elemento #logout-link não encontrado.");
     }
 
-    // 4. (FUTURO - Controle de Acesso) Mostrar/Esconder Gerenciar Assistentes baseado no Role
-    const manageAssistantsCard = document.getElementById('manage-assistants-card');
-    if (manageAssistantsCard) {
-        const userRole = payload?.role; // Pega o role do payload decodificado
-        if (userRole !== 'master') {
-            console.log("Usuário não é master, escondendo opção 'Gerenciar Assistentes'.");
-            manageAssistantsCard.classList.add('d-none'); // Esconde o card inteiro
-        } else {
-            console.log("Usuário é master, mostrando opção 'Gerenciar Assistentes'.");
-            manageAssistantsCard.classList.remove('d-none'); // Garante que está visível
-        }
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
     }
 
+    await renderRecentClients();
+    if (userRole === 'master') {
+        await renderAssistantsSummary();
+    }
 
     console.log("Painel principal pronto.");
 });
-
-// Função auxiliar simples para escapar HTML (evita XSS básico)
-function escapeHtml(unsafe) {
-    if (typeof unsafe !== 'string') return '';
-    return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
-}

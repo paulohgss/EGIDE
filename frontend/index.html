@@ -5,71 +5,116 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Égide - Painel Principal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <style>
-        /* Estilo adicional para os cartões de navegação */
-        .card-link {
-            text-decoration: none;
-            color: inherit; /* Herda a cor do texto */
-        }
         .card-link .card:hover {
-            border-color: var(--bs-primary); /* Destaca ao passar o mouse */
-            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            border-color: #0d6efd;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+            transition: all 0.2s;
         }
         .card-icon {
-            font-size: 2.5rem; /* Tamanho do ícone */
+            font-size: 2rem;
             margin-bottom: 0.5rem;
+        }
+        .auth-logo {
+            max-width: 60px;
+            margin-right: 1rem;
         }
     </style>
 </head>
 <body>
     <div class="container my-4">
         <header class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
-            <h1 id="main-title">Égide - Painel Principal</h1>
-            <div>
-                <span id="user-greeting" class="me-3 d-none"></span> <a href="#" id="logout-link" class="btn btn-outline-danger btn-sm">Sair</a>
+            <div class="d-flex align-items-center">
+                <img src="images/logo_placeholder.png" alt="Logo Égide" class="auth-logo">
+                <h1 id="main-title" class="h3 mb-0">Égide - Painel Principal</h1>
+            </div>
+            <div class="d-flex align-items-center">
+                <span id="user-greeting" class="me-3 d-none"></span>
+                <button id="theme-toggle" class="btn btn-outline-secondary btn-sm me-2" aria-label="Alternar tema claro/escuro">🌙</button>
+                <a href="#" id="logout-link" class="btn btn-outline-danger btn-sm">Sair</a>
             </div>
         </header>
 
-        <section id="main-navigation">
-            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        <section id="notifications" class="mb-4">
+            <h2 class="h4 mb-3">Notificações</h2>
+            <div id="notifications-list" class="alert alert-info">Nenhuma notificação no momento.</div>
+        </section>
 
+        <section id="recent-clients" class="mb-4">
+            <h2 class="h4 mb-3">Clientes Recentes</h2>
+            <div id="clients-loading" class="text-center d-none">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+            </div>
+            <div id="clients-error" class="alert alert-warning d-none">
+                Não foi possível carregar a lista de clientes.
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>CPF</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-clients-table-body"></tbody>
+                </table>
+                <p id="no-clients-message" class="text-muted d-none">Nenhum cliente cadastrado.</p>
+            </div>
+        </section>
+
+        <section id="assistants-summary" class="mb-4 d-none">
+            <h2 class="h4 mb-3">Resumo de Assistentes</h2>
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <p id="assistants-count" class="mb-0"></p>
+                </div>
+            </div>
+        </section>
+
+        <section id="main-navigation">
+            <h2 class="h4 mb-3">Navegação</h2>
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
                 <div class="col">
                     <a href="chat.html" class="card-link">
                         <div class="card text-center h-100 shadow-sm">
                             <div class="card-body">
-                                <div class="card-icon">💬</div>
+                                <i class="bi bi-chat-dots card-icon"></i>
                                 <h5 class="card-title">Iniciar Nova Análise</h5>
                                 <p class="card-text">Comece uma nova consulta ou análise de caso do zero.</p>
                             </div>
                         </div>
                     </a>
                 </div>
-
                 <div class="col">
                     <a href="clients.html" class="card-link">
                         <div class="card text-center h-100 shadow-sm">
                             <div class="card-body">
-                                <div class="card-icon">👥</div>
+                                <i class="bi bi-people card-icon"></i>
                                 <h5 class="card-title">Gerenciar Clientes</h5>
                                 <p class="card-text">Visualize, adicione ou inicie análises para clientes existentes.</p>
                             </div>
                         </div>
                     </a>
                 </div>
-
-                <div class="col" id="manage-assistants-card"> <a href="assistants.html" class="card-link">
+                <div class="col" id="manage-assistants-card">
+                    <a href="assistants.html" class="card-link">
                         <div class="card text-center h-100 shadow-sm">
                             <div class="card-body">
-                                <div class="card-icon">🧑‍💼</div>
+                                <i class="bi bi-person-gear card-icon"></i>
                                 <h5 class="card-title">Gerenciar Assistentes</h5>
                                 <p class="card-text">Adicione ou visualize os assistentes vinculados à sua conta.</p>
                             </div>
                         </div>
                     </a>
                 </div>
-
-                </div>
+            </div>
         </section>
     </div>
 

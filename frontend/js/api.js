@@ -7,7 +7,7 @@ import {
   API_ASSISTANTS_URL, // <<< Nova URL importada
   API_CLIENTS_URL,
 } from './config.js';
-import { AppState } from './state.js';
+import { AppState, SESSION_ID_STORAGE_KEY } from './state.js';
 import { showError, showProgress, clearProgress } from './ui.js';
 import { i18nInstance } from './i18n.js';
 
@@ -266,3 +266,49 @@ export async function addClient(name, cpf, dob) {
     console.log("Cliente adicionado:", data.client);
     return data; // Retorna { success: true, message: ..., client: {...} }
 }
+
+/**
+ * Busca a lista de sessões de análise para um cliente específico.
+ * @param {string} clientId O ID do cliente.
+ * @returns {Promise<Array<Object>>} Uma promessa que resolve para a lista de sessões.
+ */
+export async function getClientSessions(clientId) {
+    if (!clientId) {
+      console.error("getClientSessions chamado sem clientId");
+      throw new Error("ID do cliente não fornecido.");
+    }
+    console.log(`Buscando sessões para cliente ID: ${clientId}`);
+    const sessionsUrl = `${API_CLIENTS_URL}/${clientId}/sessions`; // Constrói a URL correta
+    const headers = createAuthHeaders(); // Pega cabeçalhos com token
+  
+    if (!headers['Authorization']) {
+      // Redirecionar para login ou lançar erro mais específico?
+      console.error("Token de autenticação não encontrado para buscar sessões.");
+      throw new Error("Autenticação necessária.");
+    }
+  
+    try {
+      const response = await fetch(sessionsUrl, { method: 'GET', headers });
+      const data = await response.json(); // Tenta ler JSON mesmo em caso de erro
+  
+      if (!response.ok) {
+        // Trata erros 403 (proibido) e 404 (não encontrado) especificamente se necessário
+        if (response.status === 404 || response.status === 403) {
+          console.warn(`Sessões não encontradas ou acesso negado para cliente ${clientId} (Status: ${response.status})`);
+          // Poderia retornar vazio ou lançar erro dependendo de como a UI quer tratar
+          // Vamos retornar vazio por enquanto
+          return []; // Retorna array vazio para indicar que não há sessões ou acesso negado
+        }
+        // Outros erros
+        throw new Error(data.error || `Erro ${response.status}`);
+      }
+  
+      console.log("Sessões recebidas:", data.sessions);
+      return data.sessions || []; // Retorna a lista ou um array vazio
+  
+    } catch (err) {
+      console.error(`Erro detalhado ao buscar sessões para cliente ${clientId}:`, err);
+      // Poderia usar showError aqui, mas é melhor lançar para o chamador (client-sessions.js) tratar
+      throw new Error(`Falha ao buscar histórico do cliente: ${err.message}`);
+    }
+  }

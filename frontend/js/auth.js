@@ -77,7 +77,7 @@ async function handleLogin(event) {
             localStorage.setItem('token', data.token);
             localStorage.setItem('user_id', data.user_id); // Salva o user_id também
             // Redireciona para a página principal
-            window.location.href = '/'; // ou '/index.html' dependendo de como seu servidor está configurado
+            window.location.href = 'index.html'; // ou '/index.html' dependendo de como seu servidor está configurado
         } else {
             throw new Error('Resposta de login inválida recebida do servidor.');
         }

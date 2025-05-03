@@ -32,21 +32,52 @@ const db = new Database('egide.db', { verbose: console.log }); // Conecta/cria o
 
 // Garante que as tabelas existam
 db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    role TEXT DEFAULT 'master', -- Define o papel/role do usuário
+    master_user_id TEXT,      -- Guarda o ID do Master se for um Auxiliar
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (master_user_id) REFERENCES users(user_id) ON DELETE SET NULL -- Opcional: se master for deletado, assistente fica sem master
+  );
+`);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS clients (
+    client_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL, -- ID do advogado/master que cadastrou
+    name TEXT NOT NULL,
+    cpf TEXT UNIQUE,      -- CPF deve ser único em todo o sistema
+    dob TEXT,             -- Data de Nascimento (formato AAAA-MM-DD)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE -- Se advogado/master for deletado, seus clientes vão junto
+  );
+`);
+db.exec(`
   CREATE TABLE IF NOT EXISTS session_history (
     session_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL, -- Pode ser 'anon' ou um ID real
     history TEXT,          -- Armazenará o histórico como JSON string
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- Não precisa de FK aqui, pois session_id pode não estar em 'sessions' (ex: sessões anônimas)
   );
 `);
+
+// ADICIONE ESTE BLOCO PARA A TABELA SESSIONS:
 db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    user_id TEXT PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  CREATE TABLE IF NOT EXISTS sessions (
+    session_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    title TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE
   );
 `);
+// FIM DO BLOCO ADICIONADO
+
 console.log("Banco de dados SQLite inicializado e tabelas verificadas.");
 
 // --- Middleware de Autenticação (Verifica Token JWT) ---
@@ -401,13 +432,11 @@ app.get('/api/assistants', authenticateToken, (req, res) => {
 
 // Em backend/server.js
 
-// Endpoint Principal para Chamada dos Bots (MODIFICADO para registrar na tabela sessions)
-
-// Em backend/server.js -> DENTRO do endpoint app.post('/api/call-bot', ...)
+// Em backend/server.js
 
 // Endpoint Principal para Chamada dos Bots (MODIFICADO para registrar na tabela sessions)
 app.post('/api/call-bot', authenticateToken, async (req, res) => {
-  // <<< MODIFICAÇÃO 1: Pega client_id do corpo também >>>
+  // <<< MUDANÇA 1: Pega client_id do corpo também >>>
   const { role, message, session_id, client_id } = req.body;
   const user = req.user; // Dados do usuário logado (pode ser undefined se anônimo)
   const user_id = user?.user_id; // Pega o ID do usuário logado, se houver
@@ -432,27 +461,30 @@ app.post('/api/call-bot', authenticateToken, async (req, res) => {
 
   // Define o ID da sessão e o ID do usuário efetivo para salvar no DB
   const isNewSession = !session_id; // Verifica se é uma nova sessão
-  const current_session_id = session_id || `session_${Date.now()}_${user_id || 'anon'}`;
-  const effective_user_id = user_id || 'anon';
+  // <<< MUDANÇA 2: Garante que user_id seja pego do token ou 'anon' >>>
+  const effective_user_id = user?.user_id || 'anon'; // Usa user_id do token se existir, senão 'anon'
+  const current_session_id = session_id || `session_${Date.now()}_${effective_user_id}`;
 
-  // <<< MODIFICAÇÃO 2: Validação do client_id se for nova sessão >>>
+  // <<< MUDANÇA 3: Validação do client_id se for nova sessão >>>
   if (isNewSession && !client_id) {
       // Se é uma nova sessão vinda do fluxo principal (index.html direto), não terá client_id.
-      // Se veio de clients.html, DEVE ter client_id.
-      // Poderíamos retornar erro se veio de clients.html sem ID, mas como distinguir?
-      // Por enquanto, apenas avisamos se for nova E não tiver cliente.
+      // OK continuar, apenas logamos.
       console.warn(`Iniciando NOVA sessão (${current_session_id}) sem um client_id associado.`);
   } else if (isNewSession && client_id) {
+      // É uma nova sessão E veio com client_id (provavelmente de clients.html)
        console.log(`Nova sessão (${current_session_id}) será associada ao cliente ${client_id}`);
+       // Validação do cliente ocorrerá ANTES de inserir na tabela sessions
+  } else if (!isNewSession && client_id) {
+      // É uma sessão existente, mas por algum motivo enviaram client_id de novo. Ignoramos.
+      console.warn(`Client_id (${client_id}) enviado para sessão EXISTENTE (${current_session_id}). Será ignorado para inserção na tabela 'sessions'.`);
   }
 
   try {
     // 1. Obtém o prompt do sistema
     const finalSystemPrompt = getSystemPrompt(role);
-    // ... (logs de aviso e envio para OpenAI) ...
-     console.log(`Enviando para OpenAI (Role: ${role}). Prompt System (início): ${finalSystemPrompt.substring(0, 100)}...`);
+    console.log(`Enviando para OpenAI (Role: ${role}). Prompt System (início): ${finalSystemPrompt.substring(0, 100)}...`);
 
-    // 2. Faz a chamada para a API da OpenAI
+    // 2. Faz a chamada para a API da OpenAI (sem mudanças aqui)
     const response = await axios.post(
        process.env.OPENAI_API_ENDPOINT || 'https://api.openai.com/v1/chat/completions',
        {
@@ -467,49 +499,74 @@ app.post('/api/call-bot', authenticateToken, async (req, res) => {
            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
            'Content-Type': 'application/json'
          },
-         timeout: 90000
+         timeout: 90000 // 90s
        }
      );
     console.log(`Resposta recebida da OpenAI (Role: ${role}). Status: ${response.status}`);
 
-    // <<< MODIFICAÇÃO 3: Inserção na tabela SESSIONS se for nova sessão E tiver client_id >>>
+    // <<< MUDANÇA 4: Inserção na tabela SESSIONS se for nova sessão E tiver client_id >>>
     if (isNewSession && client_id) {
         try {
-            // Garante que o cliente existe antes de tentar inserir a sessão
-            const clientCheck = db.prepare('SELECT client_id FROM clients WHERE client_id = ? AND user_id = ?').get(client_id, effective_user_id);
-            if (!clientCheck) {
-                 // Cliente não encontrado ou não pertence a este usuário! Retorna erro.
-                 console.error(`Erro ao registrar sessão: Cliente ${client_id} não encontrado para usuário ${effective_user_id}`);
-                 // Usamos 404 ou 400? 404 faz sentido pois o recurso referenciado não existe.
-                 return res.status(404).json({ error: `Cliente com ID ${client_id} não encontrado.` });
+            // Validar se o cliente existe E pertence ao usuário logado (ou é sessão anônima?)
+            // Por enquanto, vamos permitir associar a qualquer cliente existente se a sessão for anônima,
+            // mas se for logado, o cliente DEVE pertencer ao usuário.
+            let clientCheck = null;
+            if (effective_user_id !== 'anon') {
+                 clientCheck = db.prepare('SELECT client_id FROM clients WHERE client_id = ? AND user_id = ?').get(client_id, effective_user_id);
+                 if (!clientCheck) {
+                    // Cliente não encontrado OU não pertence a este usuário! Retorna erro.
+                    console.error(`Erro ao registrar sessão: Cliente ${client_id} não encontrado ou não pertence ao usuário ${effective_user_id}`);
+                    return res.status(404).json({ error: `Cliente com ID ${client_id} não encontrado ou acesso negado.` });
+                 }
+                 console.log(`Validação OK: Cliente ${client_id} pertence ao usuário ${effective_user_id}.`);
+            } else {
+                 // Sessão anônima - Apenas verifica se o cliente existe
+                 clientCheck = db.prepare('SELECT client_id FROM clients WHERE client_id = ?').get(client_id);
+                 if (!clientCheck) {
+                     console.error(`Erro ao registrar sessão anônima: Cliente ${client_id} não encontrado.`);
+                     return res.status(404).json({ error: `Cliente com ID ${client_id} não encontrado.` });
+                 }
+                 console.log(`Validação OK: Cliente ${client_id} existe (sessão anônima).`);
             }
 
-            // Cliente existe, insere na tabela sessions
+
+            // Cliente validado, insere na tabela sessions
             const sessionStmt = db.prepare(`
                 INSERT INTO sessions (session_id, user_id, client_id, last_updated_at)
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             `);
-            // Usamos effective_user_id que pode ser 'anon' ou o ID real
             sessionStmt.run(current_session_id, effective_user_id, client_id);
-            console.log(`Registro criado na tabela 'sessions' para session_id: ${current_session_id}, client_id: ${client_id}`);
+            console.log(`Registro criado na tabela 'sessions' para session_id: ${current_session_id}, client_id: ${client_id}, user_id: ${effective_user_id}`);
 
         } catch (sessionDbError) {
-            console.error(`ERRO AO REGISTRAR SESSÃO na tabela 'sessions' (session: ${current_session_id}, client: ${client_id}):`, sessionDbError);
+            console.error(`ERRO AO REGISTRAR SESSÃO na tabela 'sessions' (session: ${current_session_id}, client: ${client_id}, user: ${effective_user_id}):`, sessionDbError);
             // Se erro for constraint (PK duplicada, FK inválida), retorna 409 ou 500?
             if (sessionDbError.code?.startsWith('SQLITE_CONSTRAINT')) {
-                 return res.status(409).json({ error: "Erro ao registrar sessão devido a dados inconsistentes." });
+                 // Pode ser session_id duplicado (improvável com timestamp) ou FK inválida (se cliente foi deletado entre a validação e o insert)
+                 return res.status(409).json({ error: "Erro ao registrar sessão devido a dados inconsistentes ou conflitantes." });
              }
             // Outros erros, retorna 500
-            return res.status(500).json({ error: "Erro interno ao registrar a sessão." });
+            return res.status(500).json({ error: "Erro interno ao registrar a sessão no banco de dados." });
         }
     }
 
-    // 4. Lógica de Salvamento do Histórico (session_history)
+    // 4. Lógica de Salvamento do Histórico (session_history) - (sem mudanças significativas aqui, mas verificando contexto)
+    let reply = ''; // Inicializa reply
     if (response.data.choices && response.data.choices.length > 0 && response.data.choices[0].message) {
-      const reply = response.data.choices[0].message.content.trim();
+      reply = response.data.choices[0].message.content.trim();
       try {
         const row = db.prepare('SELECT history FROM session_history WHERE session_id = ?').get(current_session_id);
-        const currentHistory = row ? JSON.parse(row.history) : [];
+        let currentHistory = [];
+        if (row && row.history) {
+            try {
+                currentHistory = JSON.parse(row.history);
+                if (!Array.isArray(currentHistory)) currentHistory = []; // Garante que seja array
+            } catch (parseError) {
+                console.error(`Erro ao parsear histórico existente para sessão ${current_session_id}. Resetando histórico local.`, parseError);
+                currentHistory = []; // Reseta se JSON inválido
+            }
+        }
+
         const interaction = { type: 'user_message_to_bot', role_called: role, content: message, timestamp: new Date().toISOString() };
         const botResponse = { type: 'bot_response', role: role, content: reply, timestamp: new Date().toISOString() };
         const updatedHistory = [...currentHistory, interaction, botResponse];
@@ -520,31 +577,45 @@ app.post('/api/call-bot', authenticateToken, async (req, res) => {
         );
         console.log(`Histórico salvo/atualizado para session_id: ${current_session_id}, effective_user_id: ${effective_user_id}`);
 
-        // Atualiza last_updated_at na tabela sessions, se existir registro lá
-        if (client_id || !isNewSession) { // Se tem cliente ou não é nova, a sessão DEVE existir em 'sessions'
-            try {
-                // Usamos UPDATE simples, ele não fará nada se o session_id não existir na tabela sessions
-                db.prepare('UPDATE sessions SET last_updated_at = CURRENT_TIMESTAMP WHERE session_id = ?')
-                  .run(current_session_id);
-            } catch (updateErr) {
-                // Loga o erro mas não impede a resposta principal
-                console.error(`Erro ao atualizar last_updated_at para sessão ${current_session_id}:`, updateErr);
-            }
-        }
+        // <<< MUDANÇA 5: Atualiza last_updated_at na tabela sessions se a sessão existir lá >>>
+        // Se a sessão foi criada neste request (isNewSession && client_id) OU
+        // se é uma sessão existente (!isNewSession) que *poderia* estar na tabela sessions
+        // (Não temos como saber com certeza se uma sessão antiga está vinculada sem buscar,
+        // então tentamos o UPDATE. Se não existir, não fará nada)
+        try {
+             db.prepare('UPDATE sessions SET last_updated_at = CURRENT_TIMESTAMP WHERE session_id = ?')
+               .run(current_session_id);
+             // Não precisamos logar sucesso aqui, só erro.
+         } catch (updateErr) {
+             // Loga o erro mas não impede a resposta principal
+             console.error(`Erro (não crítico) ao atualizar last_updated_at para sessão ${current_session_id}:`, updateErr);
+         }
 
       } catch (dbError) {
-        console.error(`Erro ao salvar histórico na tabela 'session_history' (session: ${current_session_id}, user: ${effective_user_id}):`, dbError);
+        console.error(`Erro CRÍTICO ao salvar histórico na tabela 'session_history' (session: ${current_session_id}, user: ${effective_user_id}):`, dbError);
         // Considerar retornar erro 500 aqui, pois a falha em salvar o histórico é crítica.
         return res.status(500).json({ error: "Erro interno ao salvar histórico da conversa." });
       }
     } else {
       console.warn(`Histórico não salvo (session: ${current_session_id}): Resposta da OpenAI inválida ou vazia.`, response.data);
-      // Mesmo se a resposta for inválida, talvez devêssemos retornar a resposta (sem salvar)?
-      // Ou retornar um erro específico? Por enquanto, continua e envia a resposta vazia/inválida.
+      // Mesmo se a resposta for inválida, retorna sucesso parcial (status 200) mas sem o conteúdo da IA.
+      // O frontend terá que lidar com uma resposta sem 'choices'.
+      // Prepara uma resposta indicando a falha parcial.
+      const partialFailureResponse = {
+          warning: 'Resposta da IA não foi obtida ou veio em formato inesperado.',
+          openai_response: response.data // Retorna a resposta crua da OpenAI para debug
+      };
+       if (isNewSession) {
+           partialFailureResponse.generated_session_id = current_session_id;
+       }
+       // Retorna 200 OK, mas com um aviso. O histórico não foi salvo para esta interação.
+       return res.status(200).json(partialFailureResponse);
     }
 
-    // 5. Prepara e envia a resposta para o Frontend
+    // 5. Prepara e envia a resposta para o Frontend (sem mudanças aqui)
     const responseData = { ...response.data };
+    // Garante que a resposta final tenha o conteúdo extraído (mesmo que vazio se a IA falhou antes)
+    responseData.choices = [{ message: { content: reply } }]; // Formata para o frontend esperar isso
     if (isNewSession) { // Envia o session_id gerado APENAS se for uma nova sessão
       responseData.generated_session_id = current_session_id;
       console.log(`Novo session_id gerado e retornado: ${current_session_id}`);
@@ -552,7 +623,7 @@ app.post('/api/call-bot', authenticateToken, async (req, res) => {
     res.json(responseData);
 
   } catch (error) { // Trata erros da chamada axios ou erros relançados do DB
-    // ... (código do catch continua igual ao da versão completa anterior) ...
+    // ... (código do catch permanece o mesmo) ...
     let statusCode = 500;
     let errorMessage = 'Erro interno do servidor ao processar a requisição.';
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
@@ -570,9 +641,11 @@ app.post('/api/call-bot', authenticateToken, async (req, res) => {
       console.error('Erro de rede ao chamar OpenAI (sem resposta):', error.message);
       statusCode = 504;
       errorMessage = 'Não foi possível conectar ao serviço de IA.';
-    } else { // Outro erro
-      console.error('Erro interno não esperado no backend:', error.message, error.stack);
-      errorMessage = `Erro inesperado no servidor.`;
+    } else { // Outro erro (incluindo erros lançados explicitamente por nós, como validação de cliente)
+      console.error('Erro interno não esperado ou validação falhou:', error.message, error.stack);
+      // Se o erro já tiver um status code (como 404 da validação do cliente), usa ele.
+      statusCode = error.statusCode || 500;
+      errorMessage = error.message || `Erro inesperado no servidor.`;
     }
     // Verifica se a resposta já foi enviada (ex: erro de cliente não encontrado)
     if (!res.headersSent) {
@@ -630,6 +703,54 @@ app.get('/api/session-history/:session_id', authenticateToken, (req, res) => {
     res.status(500).json({ error: 'Erro interno do servidor ao acessar o banco de dados.' });
   }
 }); // Fim do app.get('/api/session-history/:session_id')
+
+// Em backend/server.js, adicione este endpoint após os outros endpoints de /api/clients
+
+// Endpoint para Listar Sessões de um Cliente Específico
+app.get('/api/clients/:client_id/sessions', authenticateToken, (req, res) => {
+  const { client_id } = req.params;
+  const user = req.user; // Dados do usuário logado (do token)
+
+  // 1. Garantir que o usuário está autenticado
+  if (!user || !user.user_id) {
+    return res.status(401).json({ error: "Autenticação necessária." });
+  }
+  const user_id = user.user_id;
+
+  console.log(`Buscando sessões para client_id: ${client_id} e user_id: ${user_id}`);
+
+  try {
+    // 2. Verificar se o cliente pertence ao usuário logado
+    const clientCheck = db.prepare('SELECT user_id FROM clients WHERE client_id = ?').get(client_id);
+
+    if (!clientCheck) {
+        console.warn(`Tentativa de acesso a sessões de cliente inexistente: ${client_id} por user: ${user_id}`);
+        return res.status(404).json({ error: "Cliente não encontrado." });
+    }
+    if (clientCheck.user_id !== user_id) {
+        console.warn(`Tentativa de acesso negada: Cliente ${client_id} não pertence ao user: ${user_id}`);
+        // Retorna 404 em vez de 403 para não vazar informação se o cliente existe mas pertence a outro
+        return res.status(404).json({ error: "Cliente não encontrado ou acesso negado." });
+    }
+
+    // 3. Cliente pertence ao usuário, buscar as sessões
+    const sessions = db.prepare(`
+      SELECT session_id, created_at, last_updated_at, title
+      FROM sessions
+      WHERE client_id = ? AND user_id = ?
+      ORDER BY last_updated_at DESC
+    `).all(client_id, user_id);
+
+    console.log(`Encontradas ${sessions.length} sessões para client_id: ${client_id}`);
+
+    // 4. Retornar a lista de sessões (pode ser vazia)
+    res.json({ sessions: sessions || [] });
+
+  } catch (dbError) {
+    console.error(`Erro de banco de dados ao buscar sessões para client_id ${client_id} (user: ${user_id}):`, dbError);
+    res.status(500).json({ error: 'Erro interno do servidor ao buscar sessões.' });
+  }
+}); // Fim do GET /api/clients/:client_id/sessions
 
 // --- Inicialização do Servidor ---
 const PORT = process.env.PORT || 3000;

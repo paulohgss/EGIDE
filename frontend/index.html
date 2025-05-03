@@ -1,97 +1,79 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Multi-Bot Jurídico</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <script src="https://unpkg.com/i18next@23.7.6/dist/umd/i18next.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Égide - Painel Principal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Estilo adicional para os cartões de navegação */
+        .card-link {
+            text-decoration: none;
+            color: inherit; /* Herda a cor do texto */
+        }
+        .card-link .card:hover {
+            border-color: var(--bs-primary); /* Destaca ao passar o mouse */
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+        .card-icon {
+            font-size: 2.5rem; /* Tamanho do ícone */
+            margin-bottom: 0.5rem;
+        }
+    </style>
 </head>
 <body>
-<div class="container my-4">
-  <header class="d-flex justify-content-between align-items-center mb-4">
-    <h1 id="title">Égide</h1>
-    <div>
-      <select id="languageSelect" class="form-select form-select-sm d-inline-block w-auto">
-        <option value="pt">Português</option>
-        <option value="en">English</option>
-      </select>
-      <button id="themeToggle" class="btn btn-outline-secondary btn-sm ms-2" aria-label="Alternar tema claro/escuro">🌙</button>
-	<a href="clients.html" id="manage-clients-link" class="btn btn-outline-success btn-sm ms-3">Gerenciar Clientes</a>
-	<a href="assistants.html" id="manage-assistants-link" class="btn btn-outline-info btn-sm ms-3">Gerenciar Assistentes</a>
-	<a href="#" id="logout-link" class="btn btn-outline-danger btn-sm ms-3">Sair</a>
+    <div class="container my-4">
+        <header class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+            <h1 id="main-title">Égide - Painel Principal</h1>
+            <div>
+                <span id="user-greeting" class="me-3 d-none"></span> <a href="#" id="logout-link" class="btn btn-outline-danger btn-sm">Sair</a>
+            </div>
+        </header>
+
+        <section id="main-navigation">
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+
+                <div class="col">
+                    <a href="chat.html" class="card-link">
+                        <div class="card text-center h-100 shadow-sm">
+                            <div class="card-body">
+                                <div class="card-icon">💬</div>
+                                <h5 class="card-title">Iniciar Nova Análise</h5>
+                                <p class="card-text">Comece uma nova consulta ou análise de caso do zero.</p>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col">
+                    <a href="clients.html" class="card-link">
+                        <div class="card text-center h-100 shadow-sm">
+                            <div class="card-body">
+                                <div class="card-icon">👥</div>
+                                <h5 class="card-title">Gerenciar Clientes</h5>
+                                <p class="card-text">Visualize, adicione ou inicie análises para clientes existentes.</p>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col" id="manage-assistants-card"> <a href="assistants.html" class="card-link">
+                        <div class="card text-center h-100 shadow-sm">
+                            <div class="card-body">
+                                <div class="card-icon">🧑‍💼</div>
+                                <h5 class="card-title">Gerenciar Assistentes</h5>
+                                <p class="card-text">Adicione ou visualize os assistentes vinculados à sua conta.</p>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+
+                </div>
+        </section>
     </div>
-  </header>
 
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <form id="caseForm">
-        <div class="mb-3">
-          <label for="entradaUsuario" class="form-label" id="caseLabel">Descreva o caso:</label>
-          <textarea id="entradaUsuario" class="form-control" rows="5"
-                    placeholder="Ex.: Cliente, 45 anos, diagnosticado com hérnia de disco, CID M51.1, impossibilitado de trabalhar."
-                    aria-describedby="caseHelp errorMessage" required></textarea>
-          <div id="caseHelp" class="form-text">Forneça detalhes como idade, diagnóstico, CID e impacto laboral.</div>
-          <div id="errorMessage" class="error-message d-none" role="alert"></div>
-        </div>
-        <button type="submit" class="btn btn-primary" id="submitButton">
-          <span id="submitText">Enviar Caso</span>
-          <span class="spinner-border spinner-border-sm loading-spinner d-none" role="status" aria-hidden="true"></span>
-        </button>
-             </form>
-    </div>
-  </div>
-
-  <div class="card shadow-sm mt-4">
-    <div class="card-body">
-      <h3 id="manualActions">🔧 Ações Manuais</h3>
-      <button class="btn btn-outline-primary me-2 mb-2 mb-md-0" data-bot-role="redator" id="manualRedator">🔁 Redator</button>
-      <button class="btn btn-outline-primary me-2 mb-2 mb-md-0" data-bot-role="medico" id="manualMedico">🔁 Médico</button>
-      <button class="btn btn-outline-primary me-2 mb-2 mb-md-0" data-bot-role="estrategista" id="manualEstrategista">🔁 Estratégico</button>
-      <button class="btn btn-outline-primary mb-2 mb-md-0" data-bot-role="supervisor" id="manualSupervisor">🔁 Supervisor</button>
-    </div>
-  </div>
-
-  <div id="respostaFinal" class="mt-4 card shadow-sm p-3 d-none" aria-live="polite"></div>
-
-  <div class="mt-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center">
-      <h4 class="mb-2 me-auto">Logs</h4>
-      <div class="d-flex align-items-center flex-wrap">
-        <label for="filterSelect" class="me-2" id="filterLabel">Filtrar:</label>
-        <select id="filterSelect" class="form-select form-select-sm me-3 mb-2 mb-md-0" style="width:auto">
-          <option value="ALL" id="filterAll">Todos</option>
-          <option value="Supervisor">Supervisor</option>
-          <option value="Redator">Redator</option>
-          <option value="Médico">Médico</option>
-          <option value="Estrategista">Estrategista</option>
-        </select>
-        <button class="btn btn-outline-danger btn-sm me-2 mb-2 mb-md-0" id="clearLogsBtn">🗑️ <span id="clearLogs">Limpar logs</span></button>
-        <button class="btn btn-outline-success btn-sm mb-2 mb-md-0" id="exportLogsBtn">💾 <span id="exportLogs">Exportar histórico</span></button>
-      </div>
-    </div>
-    <div id="logsIndividuais" class="card shadow-sm p-3 mt-2 d-none" aria-live="polite"></div>
-  </div>
-
-  
-
-  <button class="btn btn-success mt-3 d-none" id="downloadPdfBtn">
-    <span id="downloadPdf">Baixar Petição como PDF</span>
-  </button>
-
-  <div id="respostaUsuarioBox" class="mt-4 card shadow-sm p-3 d-none" aria-live="assertive">
-    <h3 id="supervisorRequest">Supervisor solicitou informação adicional:</h3>
-    <textarea id="respostaUsuarioInput" class="form-control" rows="4" aria-describedby="responseHelp"></textarea>
-    <div id="responseHelp" class="form-text"></div>
-    <button class="btn btn-primary mt-2" id="respondSupervisorBtn">
-      <span id="respondSupervisor">Responder Supervisor</span>
-    </button>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script type="module" src="js/main.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="js/index-page.js"></script>
 </body>
 </html>

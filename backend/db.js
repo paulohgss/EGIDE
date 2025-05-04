@@ -33,10 +33,9 @@ try {
     `);
     console.log("Tabela 'clients' criada ou já existe.");
 
-    // Recriar tabela attendances
+    // Criar tabela attendances
     db.exec(`
-        DROP TABLE IF EXISTS attendances;
-        CREATE TABLE attendances (
+        CREATE TABLE IF NOT EXISTS attendances (
             id TEXT PRIMARY KEY,
             client_id TEXT NOT NULL,
             user_id TEXT NOT NULL,
@@ -47,7 +46,7 @@ try {
             FOREIGN KEY (user_id) REFERENCES users(user_id)
         )
     `);
-    console.log("Tabela 'attendances' recriada.");
+    console.log("Tabela 'attendances' criada ou já existe.");
 
     // Criar tabela sessions
     db.exec(`

@@ -1,8 +1,8 @@
 body {
   font-family: 'Arial', sans-serif;
   transition: background-color 0.3s, color 0.3s;
-  background-color: #f8f9fa; /* Cor clara padrão */
-  color: #212529; /* Cor texto padrão */
+  background-color: #f8f9fa;
+  color: #212529;
 }
 
 /* --- Tema Escuro --- */
@@ -24,12 +24,11 @@ body {
 }
 
 .dark-theme .form-control::placeholder {
-  color: #aaa; /* Melhorar visibilidade do placeholder no tema escuro */
+  color: #aaa;
 }
 
-
 .dark-theme .btn-outline-primary {
-  color: #a0c4ff; /* Azul claro para melhor contraste */
+  color: #a0c4ff;
   border-color: #a0c4ff;
 }
 
@@ -39,14 +38,14 @@ body {
 }
 
 .dark-theme .btn-outline-secondary {
-    color: #ccc;
-    border-color: #ccc;
-}
-.dark-theme .btn-outline-secondary:hover {
-    background-color: #ccc;
-    color: #1a1a1a;
+  color: #ccc;
+  border-color: #ccc;
 }
 
+.dark-theme .btn-outline-secondary:hover {
+  background-color: #ccc;
+  color: #1a1a1a;
+}
 
 .dark-theme details summary {
   background-color: #444;
@@ -55,7 +54,7 @@ body {
 .dark-theme details pre {
   background-color: #333;
   border-color: #555;
-  color: #e0e0e0; /* Garantir que o texto pre seja legível */
+  color: #e0e0e0;
 }
 
 .dark-theme #conversaInterna {
@@ -66,12 +65,10 @@ body {
 .error-message {
   color: #dc3545;
   font-size: 0.9em;
-  /* visibilidade controlada por JS/Bootstrap via d-none */
   margin-top: 0.5rem;
 }
 
 .loading-spinner {
-  /* visibilidade controlada por JS/Bootstrap via d-none */
   margin-left: 0.5rem;
 }
 
@@ -94,13 +91,13 @@ details summary {
 }
 
 details summary:hover {
-    background-color: #e1e1e1;
-}
-.dark-theme details summary:hover {
-    background-color: #555;
+  background-color: #e1e1e1;
 }
 
-/* Estilo para o conteúdo do log (onde a quebra de linha é importante) */
+.dark-theme details summary:hover {
+  background-color: #555;
+}
+
 details pre {
   margin-top: 0.5rem;
   padding: 1rem;
@@ -109,55 +106,114 @@ details pre {
   border-radius: 0 0 0.25rem 0.25rem;
   font-size: 0.9em;
   font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-
-  /* --- REGRAS PARA QUEBRA DE LINHA --- */
-  white-space: pre-wrap;   /* ESSENCIAL: Permite quebra de linha */
-  word-wrap: break-word;     /* ESSENCIAL: Quebra palavras longas */
-  overflow-x: auto;        /* Adiciona scroll horizontal como fallback */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow-x: auto;
 }
 
-
 #conversaInterna {
-  white-space: pre-wrap; /* Aplica quebra de linha aqui também */
-  word-wrap: break-word; /* E quebra de palavra */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
   font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
   max-height: 400px;
   overflow-y: auto;
   font-size: 0.9em;
-  /* visibilidade controlada por JS/Bootstrap via d-none */
 }
 
-/* Classe utilitária para esconder elementos (opcional) */
 .hidden {
   display: none !important;
 }
 
+/* --- Logs --- */
+#logsIndividuais, .log-entry, .log-text {
+  display: block;
+  visibility: visible;
+  opacity: 1;
+}
+
+#logsIndividuais {
+  min-height: 100px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #ddd;
+  background-color: #f9f9f9;
+}
+
+.log-text {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* Tema escuro para logs */
+.dark-theme #logsIndividuais {
+  background-color: #2c2c2c;
+  color: #e0e0e0;
+}
+
+.dark-theme .log-entry,
+.dark-theme .log-text {
+  color: #e0e0e0;
+}
 
 /* --- Responsividade --- */
 @media (max-width: 768px) {
-    /* Ajustes para telas médias, se necessário */
 }
 
 @media (max-width: 576px) {
-  /* Ajusta margens que podem quebrar em telas pequenas */
   .me-2 { margin-right: 0.5rem !important; }
   .me-3 { margin-right: 1rem !important; }
   .ms-2 { margin-left: 0.5rem !important; }
-
-  /* Melhora layout do filtro e botões de log */
   #filterSelect {
     margin-bottom: 0.5rem;
   }
 }
 
-/* styles.css - Adicionar no final do arquivo */
+/* --- Mensagens de Erro e Progresso --- */
+#errorMessage {
+  transition: opacity 0.3s ease-in-out;
+  opacity: 1;
+}
 
-/*
- * Força a quebra de linha dentro dos logs (<pre class="log-text">)
- * para evitar estouro horizontal.
- */
- .log-text {
-  white-space: pre-wrap;       /* Mantém espaços/quebras de linha, mas quebra linhas longas */
-  word-wrap: break-word;       /* Força a quebra de palavras muito longas que ainda estourariam */
-  overflow-wrap: break-word;   /* Sinônimo moderno para word-wrap */
+#errorMessage.d-none {
+  opacity: 0;
+}
+
+.alert-danger,
+.alert-warning,
+.alert-info {
+  padding: 10px 15px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+  position: relative;
+}
+
+.alert-danger {
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
+.alert-warning {
+  background-color: #fff3cd;
+  border-color: #ffeeba;
+  color: #856404;
+}
+
+.alert-info {
+  background-color: #d1ecf1;
+  border-color: #bee5eb;
+  color: #0c5460;
+}
+
+.alert .btn-close {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  padding: 0.25rem 0.5rem;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
 }

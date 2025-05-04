@@ -1,25 +1,35 @@
-import { DOM } from './dom-elements.js';
+// theme.js
 
-const THEME_KEY = 'theme';
-const DEFAULT_THEME = 'light';
+import { DOM, initializeDOM } from './dom-elements.js';
 
 export function initializeTheme() {
-    const savedTheme = localStorage.getItem(THEME_KEY) || DEFAULT_THEME;
+    if (!DOM.body || (!DOM.themeToggle && !DOM.themeToggleIndex)) {
+        console.warn("[initializeTheme] DOM.body ou botões de tema não definidos. Chamando initializeDOM.");
+        initializeDOM();
+    }
+    const savedTheme = localStorage.getItem('theme') || 'light';
     setTheme(savedTheme);
 }
 
-export function setTheme(theme) {
+export function toggleTheme() {
     if (!DOM.body) {
-        console.error("[setTheme] Elemento DOM.body não está definido. Certifique-se de que DOM.initialize() foi chamado.");
+        console.error("[toggleTheme] DOM.body não definido. Não é possível alternar o tema.");
         return;
     }
-    DOM.body.classList.remove('light', 'dark');
-    DOM.body.classList.add(theme);
-    localStorage.setItem(THEME_KEY, theme);
-}
-
-export function toggleTheme() {
-    const currentTheme = localStorage.getItem(THEME_KEY) || DEFAULT_THEME;
+    const currentTheme = DOM.body.classList.contains('dark-theme') ? 'dark' : 'light';
     const newTheme = currentTheme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
+}
+
+function setTheme(theme) {
+    if (!DOM.body) {
+        console.error("[setTheme] DOM.body não definido. Não é possível aplicar o tema.");
+        return;
+    }
+    DOM.body.classList.toggle('dark-theme', theme === 'dark');
+    localStorage.setItem('theme', theme);
+    const toggleButton = DOM.themeToggle || DOM.themeToggleIndex;
+    if (toggleButton) {
+        toggleButton.textContent = theme === 'light' ? '🌙' : '☀️';
+    }
 }

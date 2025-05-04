@@ -1,7 +1,9 @@
-import { AppState, resetCaseState } from './state.js';
+// frontend/js/logs.js
 import { DOM } from './dom-elements.js';
-import { resetUIForNewCase, updateElementVisibility } from './ui.js';
-import { getBotLogPrefix, i18nInstance } from './i18n.js';
+import { AppState } from './state.js';
+import { i18nInstance } from './i18n.js';
+import { getBotLogPrefix } from './i18n.js';
+import { updateElementVisibility, escapeHtml } from './ui.js'; // Adicionado escapeHtml
 
 export function addToHistoryAndLog(actor, text) {
     if (!text) return;
@@ -22,9 +24,10 @@ export function addToHistoryAndLog(actor, text) {
     renderLogs();
 }
 
+// frontend/js/logs.js
 export function renderLogs() {
     if (!DOM.logsIndividuais) {
-        console.error("[renderLogs] Elemento #logsIndividuais não encontrado no DOM.");
+        console.error("[renderLogs] Elemento #logsIndividuais não encontrado no DOM. Verifique se initializeDOM foi chamado após DOMContentLoaded.");
         return;
     }
     const t = i18nInstance.t.bind(i18nInstance);
@@ -33,23 +36,40 @@ export function renderLogs() {
     console.log(`[renderLogs] Total de logs em AppState.logs: ${AppState.logs.length}`);
     console.log(`[renderLogs] Filtro atual (AppState.filtroAtual): ${AppState.filtroAtual}`);
 
-    const filteredLogs = AppState.logs.filter(log =>
-        AppState.filtroAtual === 'ALL' || log.bot === AppState.filtroAtual || (AppState.filtroAtual === 'Usuário' && log.bot === userLogName)
-    );
-    console.log(`[renderLogs] Logs após filtro (${filteredLogs.length} entradas):`, filteredLogs);
+    const filteredLogs = AppState.filtroAtual === 'ALL'
+        ? AppState.logs
+        : AppState.logs.filter(log => log.bot === AppState.filtroAtual || (AppState.filtroAtual === 'Usuário' && log.bot === userLogName));
+    console.log(`[renderLogs] Logs após filtro (${filteredLogs.length} entradas):`, JSON.stringify(filteredLogs, null, 2));
 
+    DOM.logsIndividuais.innerHTML = '';
     if (filteredLogs.length > 0) {
-        DOM.logsIndividuais.innerHTML = filteredLogs.map(log => `
-            <div class="log-entry mb-2">
-                <strong>${log.bot}:</strong>
-                <pre class="log-text">${escapeHtml(log.texto)}</pre>
-            </div>
-        `).join('');
+        filteredLogs.forEach((log, index) => {
+            const logElement = document.createElement('div');
+            logElement.className = `log-entry mb-2 log-${log.bot.toLowerCase()} border rounded p-3 bg-light`;
+            
+            // Formatar o texto para melhor legibilidade
+            let formattedText = escapeHtml(log.texto)
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Negrito para **texto**
+                .replace(/\n/g, '<br>'); // Quebras de linha
+
+            // Adicionar um título para cada log
+            logElement.innerHTML = `
+                <div class="d-flex align-items-center mb-2">
+                    <strong class="me-2">${getBotLogPrefix(log.bot)}:</strong>
+                    <span class="text-muted small">Log ${index + 1}</span>
+                </div>
+                <div class="log-content" style="white-space: pre-wrap; font-family: monospace;">${formattedText}</div>
+            `;
+            DOM.logsIndividuais.appendChild(logElement);
+            console.log(`[renderLogs] Adicionado log ${index + 1}:`, logElement.outerHTML);
+        });
+        DOM.logsIndividuais.style.display = 'block';
         updateElementVisibility(DOM.logsIndividuais, true);
-        console.log("[renderLogs] Logs renderizados com sucesso em #logsIndividuais.");
+        console.log("[renderLogs] Logs renderizados com sucesso em #logsIndividuais, conteúdo:", DOM.logsIndividuais.innerHTML);
+        console.log("[renderLogs] Classe de #logsIndividuais:", DOM.logsIndividuais.className);
     } else {
-        DOM.logsIndividuais.innerHTML = '';
-        updateElementVisibility(DOM.logsIndividuais, false);
+        DOM.logsIndividuais.innerHTML = `<div class="alert alert-info">${t('noConversation', 'Nenhuma conversa disponível.')}</div>`;
+        updateElementVisibility(DOM.logsIndividuais, true);
         console.log("[renderLogs] Nenhum log para exibir após filtro.");
     }
 }
@@ -81,16 +101,6 @@ export function exportLogs() {
     URL.revokeObjectURL(url);
 }
 
-function escapeHtml(unsafe) {
-    if (typeof unsafe !== 'string') return '';
-    return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
-}
-
 export function formatBackendHistoryToString(backendHistory) {
     if (!Array.isArray(backendHistory)) return "";
     const t = i18nInstance.t.bind(i18nInstance);
@@ -102,13 +112,14 @@ export function formatBackendHistoryToString(backendHistory) {
         } else if (entry.type === 'bot_response') {
             prefix = getBotLogPrefix(entry.role);
         } else {
-             console.warn("Tipo de entrada desconhecido no histórico do backend:", entry.type);
-             return '';
+            console.warn("Tipo de entrada desconhecido no histórico do backend:", entry.type);
+            return '';
         }
         return `${prefix}:\n${content || ''}`;
     }).filter(Boolean).join('\n\n');
 }
 
+// frontend/js/logs.js
 export function formatBackendHistoryToLogs(backendHistory) {
     if (!Array.isArray(backendHistory)) return [];
     const logs = [];
@@ -120,8 +131,11 @@ export function formatBackendHistoryToLogs(backendHistory) {
         let logText = entry.content || '';
 
         if (entry.type === 'user_message_to_bot') {
-            logBotName = userLogName;
-            logs.push({ bot: logBotName, texto: logText });
+            // Apenas incluir a primeira mensagem do usuário (não mensagens internas)
+            if (logs.length === 0) {
+                logBotName = userLogName;
+                logs.push({ bot: logBotName, texto: logText });
+            }
         } else if (entry.type === 'bot_response' && entry.role) {
             logBotName = entry.role.charAt(0).toUpperCase() + entry.role.slice(1);
             logs.push({ bot: logBotName, texto: logText });

@@ -1,98 +1,71 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Égide</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <script src="https://unpkg.com/i18next@23.7.6/dist/umd/i18next.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <title data-i18n="chatTitle">Chat de Análise</title>
 </head>
 <body>
-<div class="container my-4">
-  <header class="d-flex justify-content-between align-items-center mb-4">
-   <a href="index.html" id="back-button" class="btn btn-outline-secondary btn-sm me-3">⬅️ Voltar</a> 
-   <h1 id="title">Égide</h1>
-    <div>
-      <select id="languageSelect" class="form-select form-select-sm d-inline-block w-auto">
-        <option value="pt">Português</option>
-        <option value="en">English</option>
-      </select>
-      <button id="themeToggle" class="btn btn-outline-secondary btn-sm ms-2" aria-label="Alternar tema claro/escuro">🌙</button>
-	<a href="clients.html" id="manage-clients-link" class="btn btn-outline-success btn-sm ms-3">Gerenciar Clientes</a>
-	<a href="assistants.html" id="manage-assistants-link" class="btn btn-outline-info btn-sm ms-3">Gerenciar Assistentes</a>
-	<a href="#" id="logout-link" class="btn btn-outline-danger btn-sm ms-3">Sair</a>
-    </div>
-  </header>
+    <div class="container my-4">
+        <header class="d-flex justify-content-between align-items-center mb-4">
+            <h1 id="page-title" data-i18n="chatTitle">Chat de Análise</h1>
+            <div>
+                <a href="#" id="back-button" class="btn btn-secondary" data-i18n="backToSessions">Voltar</a>
+                <button id="logout-link" class="btn btn-danger ms-2" data-i18n="logout">Sair</button>
+            </div>
+        </header>
 
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <form id="caseForm">
-        <div class="mb-3">
-          <label for="entradaUsuario" class="form-label" id="caseLabel">Descreva o caso:</label>
-          <textarea id="entradaUsuario" class="form-control" rows="5"
-                    placeholder="Ex.: Cliente, 45 anos, diagnosticado com hérnia de disco, CID M51.1, impossibilitado de trabalhar."
-                    aria-describedby="caseHelp errorMessage" required></textarea>
-          <div id="caseHelp" class="form-text">Forneça detalhes como idade, diagnóstico, CID e impacto laboral.</div>
-          <div id="errorMessage" class="error-message d-none" role="alert"></div>
+        <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header" data-i18n="caseDetails">Detalhes do Caso</div>
+            <div class="card-body">
+                <div id="caseDescription" class="alert alert-info d-none"></div>
+            </div>
         </div>
-        <button type="submit" class="btn btn-primary" id="submitButton">
-          <span id="submitText">Enviar Caso</span>
-          <span class="spinner-border spinner-border-sm loading-spinner d-none" role="status" aria-hidden="true"></span>
-        </button>
-             </form>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header" data-i18n="chatMessages">Mensagens</div>
+            <div class="card-body">
+                <div id="logsIndividuais" class="mb-3"></div>
+                <form id="caseForm">
+                    <div class="mb-3">
+                        <textarea class="form-control" id="entradaUsuario" rows="3" placeholder="Digite sua mensagem..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" data-i18n="sendMessage">Enviar</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header" data-i18n="manualActions">Ações Manuais</div>
+            <div class="card-body">
+                <button class="btn btn-secondary me-2" data-bot-role="redator" data-i18n="manualRedator">Chamar Redator</button>
+                <button class="btn btn-secondary me-2" data-bot-role="medico" data-i18n="manualMedico">Chamar Médico</button>
+                <button class="btn btn-secondary me-2" data-bot-role="estrategista" data-i18n="manualEstrategista">Chamar Estratégista</button>
+                <button class="btn btn-secondary" data-bot-role="supervisor" data-i18n="manualSupervisor">Chamar Supervisor</button>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header" data-i18n="finalResponse">Resposta Final</div>
+            <div class="card-body">
+                <div id="respostaFinal" class="alert alert-success d-none"></div>
+                <div id="respostaUsuarioBox" class="d-none">
+                    <textarea class="form-control mb-2" id="respostaUsuarioInput" rows="3" placeholder="Digite a informação solicitada aqui..."></textarea>
+                    <button id="respondSupervisorBtn" class="btn btn-primary" data-i18n="respondSupervisor">Enviar Resposta</button>
+                </div>
+                <button id="downloadPdfBtn" class="btn btn-info d-none" data-i18n="downloadPdf">Baixar PDF</button>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <div class="card shadow-sm mt-4">
-    <div class="card-body">
-      <h3 id="manualActions">🔧 Ações Manuais</h3>
-      <button class="btn btn-outline-primary me-2 mb-2 mb-md-0" data-bot-role="redator" id="manualRedator">🔁 Redator</button>
-      <button class="btn btn-outline-primary me-2 mb-2 mb-md-0" data-bot-role="medico" id="manualMedico">🔁 Médico</button>
-      <button class="btn btn-outline-primary me-2 mb-2 mb-md-0" data-bot-role="estrategista" id="manualEstrategista">🔁 Estratégico</button>
-      <button class="btn btn-outline-primary mb-2 mb-md-0" data-bot-role="supervisor" id="manualSupervisor">🔁 Supervisor</button>
-    </div>
-  </div>
-
-  <div id="respostaFinal" class="mt-4 card shadow-sm p-3 d-none" aria-live="polite"></div>
-
-  <div class="mt-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center">
-      <h4 class="mb-2 me-auto">Logs</h4>
-      <div class="d-flex align-items-center flex-wrap">
-        <label for="filterSelect" class="me-2" id="filterLabel">Filtrar:</label>
-        <select id="filterSelect" class="form-select form-select-sm me-3 mb-2 mb-md-0" style="width:auto">
-          <option value="ALL" id="filterAll">Todos</option>
-          <option value="Supervisor">Supervisor</option>
-          <option value="Redator">Redator</option>
-          <option value="Médico">Médico</option>
-          <option value="Estrategista">Estrategista</option>
-        </select>
-        <button class="btn btn-outline-danger btn-sm me-2 mb-2 mb-md-0" id="clearLogsBtn">🗑️ <span id="clearLogs">Limpar logs</span></button>
-        <button class="btn btn-outline-success btn-sm mb-2 mb-md-0" id="exportLogsBtn">💾 <span id="exportLogs">Exportar histórico</span></button>
-      </div>
-    </div>
-    <div id="logsIndividuais" class="card shadow-sm p-3 mt-2 d-none" aria-live="polite"></div>
-  </div>
-
-  
-
-  <button class="btn btn-success mt-3 d-none" id="downloadPdfBtn">
-    <span id="downloadPdf">Baixar Petição como PDF</span>
-  </button>
-
-  <div id="respostaUsuarioBox" class="mt-4 card shadow-sm p-3 d-none" aria-live="assertive">
-    <h3 id="supervisorRequest">Supervisor solicitou informação adicional:</h3>
-    <textarea id="respostaUsuarioInput" class="form-control" rows="4" aria-describedby="responseHelp"></textarea>
-    <div id="responseHelp" class="form-text"></div>
-    <button class="btn btn-primary mt-2" id="respondSupervisorBtn">
-      <span id="respondSupervisor">Responder Supervisor</span>
-    </button>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script type="module" src="js/chat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/i18next@23.11.5/dist/umd/i18next.min.js"></script>
+    <script type="module" src="js/i18n.js"></script>
+    <script type="module" src="js/logs.js"></script>
+    <script type="module" src="js/chat.js"></script>
 </body>
 </html>

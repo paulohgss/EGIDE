@@ -1,3 +1,4 @@
+<!-- frontend/client-sessions.html -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -5,48 +6,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <title>Histórico de Análises</title>
+    <title data-i18n="attendanceHistory">Histórico de Atendimentos</title>
 </head>
 <body>
     <div class="container my-4">
         <header class="d-flex justify-content-between align-items-center mb-4">
-            <h1 id="page-title">Histórico de Análises</h1>
-            <a href="clients.html" class="btn btn-secondary">Voltar para Clientes</a>
+            <h1 id="page-title" data-i18n="attendanceHistory">Histórico de Atendimentos</h1>
+            <div>
+                <a href="add-attendance.html" id="add-attendance-button" class="btn btn-primary me-2" data-i18n="addAttendance">Adicionar Atendimento</a>
+                <button id="new-analysis-button" class="btn btn-primary me-2" data-i18n="startAnalysis">Nova Análise para este Cliente</button>
+                <a href="clients.html" class="btn btn-secondary" data-i18n="backToClients">Voltar para Clientes</a>
+            </div>
         </header>
 
         <div id="sessions-message" class="alert d-none" role="alert"></div>
 
         <div class="card shadow-sm">
-            <div class="card-header">
-                Análises Anteriores
-            </div>
+            <div class="card-header" data-i18n="previousAttendances">Atendimentos Anteriores</div>
             <div class="card-body">
                 <div id="sessions-loading" class="text-center">
                     <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Carregando...</span>
+                        <span class="visually-hidden" data-i18n="loading">Carregando...</span>
                     </div>
-                    <p>Carregando histórico...</p>
+                    <p data-i18n="loadingHistory">Carregando histórico...</p>
                 </div>
-                <div id="sessions-error" class="alert alert-danger d-none">Erro ao carregar histórico.</div>
-                <div id="no-sessions-message" class="alert alert-info d-none">Nenhuma análise anterior encontrada para este cliente.</div>
+                <div id="sessions-error" class="alert alert-danger d-none" data-i18n="errorFetchingClientAttendances">Erro ao carregar histórico.</div>
+                <div id="no-sessions-message" class="alert alert-info d-none" data-i18n="noAttendances">Nenhum atendimento encontrado para este cliente.</div>
 
-                <table class="table table-hover d-none" id="sessions-table">
-                    <thead>
-                        <tr>
-                            <th scope="col">Última Atualização</th>
-                            <th scope="col">ID da Sessão</th>
-                            <th scope="col">Título (se houver)</th>
-                            <th scope="col">Ação</th>
-                        </tr>
-                    </thead>
-                    <tbody id="sessions-table-body">
-                        </tbody>
-                </table>
+                <div class="accordion d-none" id="attendances-accordion">
+                    <!-- Atendimentos serão adicionados aqui dinamicamente -->
+                </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/i18next@23.11.5/dist/umd/i18next.min.js"></script>
+    <script type="module" src="js/i18n.js"></script>
     <script type="module" src="js/client-sessions.js"></script>
 </body>
 </html>

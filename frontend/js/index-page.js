@@ -1,136 +1,107 @@
-import { SESSION_ID_STORAGE_KEY } from './state.js';
-import { getClients, getAssistants } from './api.js';
-import { DOM } from './dom-elements.js';
-import { initializeTheme, toggleTheme } from './theme.js';
+// index-page.js
 
-function decodeJwtPayload(token) {
-    if (!token) return null;
-    try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => 
-            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-        return JSON.parse(jsonPayload);
-    } catch (e) {
-        console.error("Erro ao decodificar payload do JWT:", e);
-        return null;
-    }
-}
+import { DOM, initializeDOM } from './dom-elements.js';
+import { initializeTheme, toggleTheme } from './theme.js';
+import { initializeI18n, updateContent } from './i18n.js';
+import { getClients, getAssistants } from './api.js';
+import { showError } from './ui.js'; // Adicionado
+
 
 function escapeHtml(unsafe) {
     if (typeof unsafe !== 'string') return '';
     return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;") // Linha 26 corrigida
-        .replace(/'/g, "&#039;");
+        .replace(/&/g, "&")
+        .replace(/</g, "<")
+        .replace(/>/g, ">")
+        .replace(/"/g, "")
+        .replace(/'/g, "'");
 }
 
-function showError(message) {
-    const notificationsList = document.getElementById('notifications-list');
-    if (notificationsList) {
-        notificationsList.textContent = message;
-        notificationsList.classList.remove('alert-info');
-        notificationsList.classList.add('alert-danger');
+function handleLogout() {
+    console.log("Executando logout...");
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_id');
+    window.location.href = 'login.html';
+}
+
+async function fetchAndRenderClients() {
+    if (!DOM.recentClientsTableBody) {
+        console.error("Elemento #recent-clients-table-body não encontrado.");
+        return;
     }
-}
-
-async function renderRecentClients() {
-    const tableBody = document.getElementById('recent-clients-table-body');
-    const loading = document.getElementById('clients-loading');
-    const error = document.getElementById('clients-error');
-    const noClients = document.getElementById('no-clients-message');
-
-    if (!tableBody) return;
-
-    loading.classList.remove('d-none');
-    error.classList.add('d-none');
-    noClients.classList.add('d-none');
+    DOM.clientsLoading?.classList.remove('d-none');
+    DOM.clientsError?.classList.add('d-none');
+    DOM.noClientsMessage?.classList.add('d-none');
 
     try {
         const clients = await getClients();
-        tableBody.innerHTML = '';
+        DOM.recentClientsTableBody.innerHTML = '';
 
         if (clients.length === 0) {
-            noClients.classList.remove('d-none');
+            DOM.noClientsMessage?.classList.remove('d-none');
         } else {
-            clients.slice(0, 5).forEach(client => {
-                const row = tableBody.insertRow();
-                const formattedCpf = client.cpf ?
-                    client.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : 'N/A';
+            clients.forEach(client => {
+                const row = DOM.recentClientsTableBody.insertRow();
+                const formattedCpf = client.cpf ? client.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : 'N/A';
                 row.innerHTML = `
                     <td>${escapeHtml(client.name)}</td>
                     <td>${escapeHtml(formattedCpf)}</td>
                     <td>
-                        <button class="btn btn-sm btn-success start-analysis-btn me-2" 
-                                data-client-id="${escapeHtml(client.client_id)}" 
-                                data-client-name="${escapeHtml(client.name)}">
-                            Iniciar Análise
-                        </button>
-                        <a href="client-sessions.html?clientId=${escapeHtml(client.client_id)}&clientName=${encodeURIComponent(client.name)}" 
-                           class="btn btn-sm btn-info">
-                            Ver Histórico
-                        </a>
+                        <a href="client-sessions.html?clientId=${encodeURIComponent(client.client_id)}&clientName=${encodeURIComponent(client.name)}" class="btn btn-sm btn-primary">Ver Análises</a>
                     </td>
                 `;
             });
-            tableBody.querySelectorAll('.start-analysis-btn').forEach(button => {
-                button.addEventListener('click', () => {
-                    const clientId = button.dataset.clientId;
-                    const clientName = button.dataset.clientName;
-                    sessionStorage.setItem('selectedClientId', clientId);
-                    sessionStorage.setItem('selectedClientName', clientName);
-                    sessionStorage.setItem('cameFrom', 'index');
-                    window.location.href = 'chat.html';
-                });
-            });
         }
     } catch (error) {
-        console.error("Erro ao carregar clientes:", error);
-        error.classList.remove('d-none');
-        noClients.classList.add('d-none');
+        console.error("Erro ao buscar clientes:", error);
+        DOM.clientsError.textContent = `Erro ao carregar clientes: ${error.message}`;
+        DOM.clientsError?.classList.remove('d-none');
     } finally {
-        loading.classList.add('d-none');
+        DOM.clientsLoading?.classList.add('d-none');
     }
 }
 
-async function renderAssistantsSummary() {
-    const summarySection = document.getElementById('assistants-summary');
-    const countElement = document.getElementById('assistants-count');
-    if (!summarySection || !countElement) return;
-
+async function fetchAndRenderAssistants() {
+    if (!DOM.assistantsCount) {
+        console.error("Elemento #assistants-count não encontrado.");
+        return;
+    }
     try {
         const assistants = await getAssistants();
-        countElement.innerHTML = `Você tem ${assistants.length} assistente(s) cadastrado(s). 
-            <a href="assistants.html" class="text-primary">Ver todos</a>.`;
-        summarySection.classList.remove('d-none');
+        DOM.assistantsCount.textContent = `Você tem ${assistants.length} assistente(s) cadastrado(s).`;
+        DOM.assistantsSummary?.classList.remove('d-none');
     } catch (error) {
-        console.error("Erro ao carregar assistentes:", error);
-        summarySection.classList.add('d-none');
+        console.error("Erro ao buscar assistentes:", error);
+        DOM.assistantsSummary?.classList.add('d-none');
     }
 }
 
-function handleLogout() {
-    console.log("Executando logout do painel principal...");
-    localStorage.removeItem('token');
-    localStorage.removeItem('user_id');
-    localStorage.removeItem(SESSION_ID_STORAGE_KEY);
-    window.location.href = 'login.html';
+function setupEventListeners() {
+    const logoutLink = document.getElementById('logout-link');
+    if (logoutLink) {
+        logoutLink.addEventListener('click', (event) => {
+            event.preventDefault();
+            console.log("Executando logout...");
+            localStorage.removeItem('token');
+            localStorage.removeItem('user_id');
+            localStorage.removeItem(SESSION_ID_STORAGE_KEY);
+            window.location.href = 'login.html';
+        });
+    } else {
+        console.warn("Elemento #logout-link não encontrado.");
+    }
+
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    } else {
+        console.warn("Elemento #theme-toggle não encontrado.");
+    }
 }
 
+// Remover: import jwt_decode from "jwt-decode";
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("Inicializando painel principal...");
-
-    // Inicializa os elementos DOM antes de qualquer manipulação
-    DOM.initialize();
-    console.log("Elementos DOM inicializados:", {
-        bodyExists: !!DOM.body,
-        userGreetingExists: !!document.getElementById('user-greeting')
-    });
-
-    // Agora que o DOM está inicializado, podemos chamar initializeTheme
-    initializeTheme();
 
     const token = localStorage.getItem('token');
     if (!token) {
@@ -139,41 +110,63 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    const userGreetingElement = document.getElementById('user-greeting');
-    const payload = decodeJwtPayload(token);
-    const username = payload?.username;
-    const userRole = payload?.role;
+    try {
+        initializeDOM();
+        if (!DOM.recentClientsTableBody || !DOM.userGreeting) {
+            throw new Error('Falha ao inicializar elementos do DOM.');
+        }
+        await initializeI18n();
+        updateContent(DOM);
+        initializeTheme();
+        setupEventListeners();
 
-    if (userGreetingElement) {
-        userGreetingElement.textContent = username ? 
-            `Olá, ${escapeHtml(username)}!` : 
-            `Olá! (ID: ${localStorage.getItem('user_id') || 'Usuário'})`;
-        userGreetingElement.classList.remove('d-none');
+        const userGreetingElement = DOM.userGreeting;
+        const userId = localStorage.getItem('user_id');
+        if (userId && userGreetingElement) {
+            userGreetingElement.textContent = `Olá! (ID: ${userId})`;
+            userGreetingElement.classList.remove('d-none');
+        }
+
+        const decodedToken = decodeJwtPayload(token);
+        if (!decodedToken) {
+            throw new Error('Falha ao decodificar o token JWT.');
+        }
+        console.log('Token decodificado:', decodedToken);
+        const userRole = decodedToken.role;
+
+        const manageAssistantsLink = document.getElementById('manage-assistants-link');
+        if (manageAssistantsLink && userRole !== 'master') {
+            manageAssistantsLink.style.display = 'none';
+        }
+
+        await Promise.all([fetchAndRenderClients(), fetchAndRenderAssistants()]);
+    } catch (error) {
+        console.error("Erro ao inicializar painel principal:", error);
+        try {
+            showError('errorAppInit', 'Erro ao carregar o painel principal: ' + error.message);
+        } catch (showErrorErr) {
+            console.error("Falha ao exibir erro:", showErrorErr);
+            const errorDiv = DOM.clientsError || document.getElementById('clients-error');
+            if (errorDiv) {
+                errorDiv.textContent = 'Erro ao carregar o painel principal. Por favor, recarregue a página.';
+                errorDiv.classList.remove('d-none');
+            } else {
+                alert('Erro ao carregar o painel principal: ' + error.message);
+            }
+        }
     }
-
-    const manageAssistantsCard = document.getElementById('manage-assistants-card');
-    if (manageAssistantsCard && userRole !== 'master') {
-        console.log("Usuário não é master, escondendo opção 'Gerenciar Assistentes'.");
-        manageAssistantsCard.classList.add('d-none');
-    }
-
-    const logoutLink = document.getElementById('logout-link');
-    if (logoutLink) {
-        logoutLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            handleLogout();
-        });
-    }
-
-    const themeToggle = document.getElementById('theme-toggle');
-    if (themeToggle) {
-        themeToggle.addEventListener('click', toggleTheme);
-    }
-
-    await renderRecentClients();
-    if (userRole === 'master') {
-        await renderAssistantsSummary();
-    }
-
-    console.log("Painel principal pronto.");
 });
+
+function decodeJwtPayload(token) {
+    if (!token) return null;
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        console.error("Erro ao decodificar payload do JWT:", e);
+        return null;
+    }
+}

@@ -1,314 +1,393 @@
-// frontend/js/api.js (Modificado)
+// API.JS
 
-// Importa URLs do config.js
 import {
-  API_CALL_BOT_URL,
-  API_SESSION_HISTORY_URL_BASE,
-  API_ASSISTANTS_URL, // <<< Nova URL importada
-  API_CLIENTS_URL,
+    API_BASE_URL,
+    API_CALL_BOT_URL,
+    API_SESSION_HISTORY_URL_BASE,
+    API_ASSISTANTS_URL,
+    API_CLIENTS_URL,
 } from './config.js';
 import { AppState, SESSION_ID_STORAGE_KEY } from './state.js';
 import { showError, showProgress, clearProgress } from './ui.js';
 import { i18nInstance } from './i18n.js';
+import { getT } from './i18n.js';
 
-// Função delay (mantém)
+// --- Helpers ---
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
-* Pega o token JWT do localStorage.
-* @returns {string|null} O token ou null se não existir.
-*/
 function getAuthToken() {
-  return localStorage.getItem('token');
+    const token = localStorage.getItem('token');
+    if (!token) {
+        console.error('Token de autenticação não encontrado no localStorage.');
+        throw new Error('Token de autenticação não encontrado.');
+    }
+    return token;
 }
 
-/**
-* Cria o cabeçalho de autorização Bearer.
-* @returns {HeadersInit} Objeto de cabeçalhos com Authorization se o token existir.
-*/
 function createAuthHeaders() {
-  const headers = { 'Content-Type': 'application/json' };
-  const token = getAuthToken();
-  if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
+    const headers = { 'Content-Type': 'application/json' };
+    const token = getAuthToken();
+    headers['Authorization'] = `Bearer ${token}`;
+    return headers;
 }
 
+// --- Funções da API ---
 
-// Função callBotAPI (Ajustada para usar config e helpers)
-/// Em frontend/js/api.js
+/**
+ * Chama o backend para executar um bot.
+ * @param {string} role - Papel do bot (ex.: 'redator').
+ * @param {string} userMessage - Mensagem do usuário.
+ * @param {string|null} session_id - ID da sessão (nulo para nova sessão).
+ * @param {string|null} client_id - ID do cliente.
+ * @param {string|null} attendance_id - ID do atendimento.
+ * @param {number} retries - Número de tentativas.
+ * @returns {Promise<string>} Resposta do bot.
+ */
+export async function callBotAPI(role, userMessage, session_id = null, client_id = null, attendance_id = null, retries = 3) {
+    const effectiveUserId = localStorage.getItem('user_id');
+    console.log('Iniciando callBotAPI:', {
+        API_CALL_BOT_URL,
+        role,
+        userMessage: userMessage?.substring(0, 50) + '...',
+        session_id,
+        client_id,
+        attendance_id,
+        user_id: effectiveUserId,
+        retries
+    });
 
-// Assinatura da função modificada para incluir client_id
-export async function callBotAPI(role, userMessage, session_id = null, user_id = null, client_id = null, retries = 3) { // client_id adicionado
+    try {
+        // Validação de parâmetros
+        if (!role || !userMessage) {
+            console.error('Parâmetros obrigatórios ausentes:', { role, userMessage });
+            throw new Error('Role e userMessage são obrigatórios.');
+        }
+        if (typeof retries !== 'number' || retries < 1) {
+            console.error('Parâmetro retries inválido:', retries);
+            throw new Error('Retries deve ser um número maior ou igual a 1.');
+        }
+        console.log('Parâmetros validados com sucesso');
 
-  const token = getAuthToken(); // Pega o token
-  const effectiveUserId = localStorage.getItem('user_id'); // Pega user_id local (para log)
+        // Configuração do i18n
+        const isI18nReady = i18nInstance && typeof i18nInstance.t === 'function';
+        console.log('i18nInstance está pronto:', isI18nReady);
+        const t = isI18nReady ? i18nInstance.t.bind(i18nInstance) : (key, fallback) => fallback;
 
-  console.log(`Chamando backend para ${role} (Session: ${session_id || '(Nova)'}, User: ${effectiveUserId}, Client: ${client_id || '(Nenhum)'})...`); // Log melhorado
-  showProgress('infoProcessing', 'Processando requisição para {{role}}...', { role });
+        // Chamada ao showProgress
+        showProgress('infoProcessing', t('processingRequestForRole', 'Processando requisição para {{role}}...'), { role });
+        console.log('showProgress chamado com sucesso');
 
-  let success = false;
+        // Criação dos headers
+        const headers = createAuthHeaders();
+        console.log('Headers criados:', headers);
 
-  for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
+        let success = false;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            console.log(`Tentativa ${attempt} de ${retries} para chamar ${role}`);
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-          const headers = createAuthHeaders();
+                const body = { role, message: userMessage };
+                if (session_id) body.session_id = session_id;
+                if (client_id) body.client_id = client_id;
+                if (attendance_id) body.attendance_id = attendance_id;
 
-          // <<< MODIFICAÇÃO: Inclui client_id no corpo se ele for fornecido >>>
-          const body = { role, message: userMessage };
-          if (session_id) body.session_id = session_id;
-          // Só envia client_id se ele for passado para a função (na primeira chamada de nova sessão)
-          if (client_id) body.client_id = client_id;
-          // Não precisamos mais enviar user_id no corpo, o backend pega do token se logado
+                console.log('Enviando requisição para /api/call-bot:', { body });
 
-          console.log("Enviando corpo para /api/call-bot:", body);
+                const response = await fetch(API_CALL_BOT_URL, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(body),
+                    signal: controller.signal
+                });
+                console.log('fetch executado com sucesso');
 
-          const response = await fetch(API_CALL_BOT_URL, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify(body), // Envia o corpo com client_id (se houver)
-              signal: controller.signal
-          });
+                const responseText = await response.text();
+                console.log('Resposta recebida:', { status: response.status, body: responseText });
 
-          clearTimeout(timeoutId);
-          const data = await response.json().catch(err => { // Tratamento de erro no JSON
-              console.error("Erro ao fazer parse do JSON da resposta de /api/call-bot:", err);
-              return response.text().then(text => { throw new Error(`Resposta inválida do servidor: ${text.substring(0, 100)}...`) });
-          });
+                clearTimeout(timeoutId);
 
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (err) {
+                    console.error('Erro ao parsear JSON da resposta:', err, { responseText });
+                    throw new Error(t('invalidServerResponse', 'Resposta inválida do servidor (não JSON).'));
+                }
 
-          if (!response.ok) {
-              throw new Error(data.error || `Erro ${response.status} ao chamar API do bot.`);
-          }
+                if (!response.ok) {
+                    console.error('Resposta não OK:', { status: response.status, data });
+                    throw new Error(data.error || t('errorCallingBotAPI', `Erro ${response.status} ao chamar API do bot.`));
+                }
 
-          // Processamento da resposta de sucesso
-          if (data.choices && data.choices.length > 0 && data.choices[0].message) {
-              success = true;
+                const reply = data.choices?.[0]?.message?.content;
+                if (reply != null) {
+                    success = true;
+                    if (data.generated_session_id && AppState.currentSessionId !== data.generated_session_id) {
+                        console.log(`Atualizando session ID no estado e localStorage para: ${data.generated_session_id}`);
+                        AppState.currentSessionId = data.generated_session_id;
+                        localStorage.setItem(SESSION_ID_STORAGE_KEY, data.generated_session_id);
+                    } else if (session_id && !AppState.currentSessionId) {
+                        AppState.currentSessionId = session_id;
+                    }
+                    console.log('callBotAPI retornou com sucesso:', { reply: reply.substring(0, 50) + '...' });
+                    return reply.trim();
+                } else if (data.warning) {
+                    console.warn('callBotAPI recebeu aviso do backend:', data.warning);
+                    showError('apiWarning', t('serverWarning', 'Aviso do servidor: ') + data.warning);
+                    success = true;
+                    return '';
+                } else {
+                    console.error('Resposta do backend OK, mas formato inesperado:', data);
+                    throw new Error(t('unexpectedBotResponse', 'Resposta inesperada ou vazia do backend ao chamar o bot.'));
+                }
+            } catch (err) {
+                console.error(`Tentativa ${attempt} falhou para ${role}:`, err.message, err.stack);
+                success = false;
+                if (attempt === retries) {
+                    const isTimeout = err.name === 'AbortError';
+                    showError(
+                        isTimeout ? 'timeoutError' : 'apiError',
+                        isTimeout ? t('timeoutError', 'A requisição para {{role}} demorou muito.') : t('errorCallingRole', `Erro ao chamar ${role}: ${err.message}`),
+                        { role }
+                    );
+                    err.handled = true;
+                    throw err;
+                }
+                await delay(1000 * attempt);
+            } finally {
+                if (attempt === retries || success) {
+                    clearProgress();
+                }
+            }
+        }
+        throw new Error(t('failedBotAPICall', `Falha ao chamar API para ${role} após ${retries} tentativas.`));
+    } catch (err) {
+        console.error('Erro antes do loop de tentativas:', err.message, err.stack);
+        throw err;
+    }
+}
 
-              // Atualiza AppState e localStorage se backend gerou novo ID
-              if (data.generated_session_id && AppState.currentSessionId !== data.generated_session_id) {
-                   console.log(`Atualizando session ID no estado e localStorage para: ${data.generated_session_id}`);
-                   AppState.currentSessionId = data.generated_session_id;
-                   localStorage.setItem(SESSION_ID_STORAGE_KEY, data.generated_session_id);
-              } else if (session_id && !AppState.currentSessionId) {
-                   // Garante que se enviamos um ID, ele esteja no estado
-                   AppState.currentSessionId = session_id;
-              }
-
-              return data.choices[0].message.content.trim();
-          } else {
-              console.error("Resposta do backend OK para /api/call-bot, mas formato inesperado:", data);
-              throw new Error('Resposta inesperada ou vazia do backend ao chamar o bot.');
-          }
-
-      } catch (err) {
-           console.error(`Tentativa ${attempt} falhou para ${role} (Session: ${session_id}, Client: ${client_id}):`, err);
-           success = false;
-           if (attempt === retries) {
-               if (err.name === 'AbortError') {
-                   showError('timeoutError', 'A requisição para {{role}} demorou muito.', { role });
-               } else {
-                   showError('apiError', `Erro ao chamar ${role}: ${err.message}`, { status: err.message });
-               }
-               err.handled = true;
-               throw err;
-           }
-           await delay(1000 * attempt);
-      } finally {
-         if (attempt === retries || success) {
-             clearProgress();
-         }
-      }
-  }
-  // Se chegou aqui, todas as tentativas falharam
-  throw new Error(`Falha ao chamar API para ${role} após ${retries} tentativas.`);
-} // Fim de callBotAPI
-
-
-
-// Função getSessionHistory (Ajustada para usar config e helpers)
+/**
+ * Busca o histórico de mensagens para uma sessão específica.
+ */
 export async function getSessionHistory(session_id) {
-  if (!session_id) {
-      console.warn("getSessionHistory chamado sem session_id");
-      return [];
-  }
-  console.log(`Buscando histórico para session_id: ${session_id}`);
-  const historyUrl = `${API_SESSION_HISTORY_URL_BASE}/${session_id}`; // <<< Usa URL base do config >>>
-  const headers = createAuthHeaders(); // <<< Usa helper >>>
+    if (!session_id) {
+        console.warn("getSessionHistory chamado sem session_id");
+        return { history: [] };
+    }
+    console.log(`Buscando histórico para session_id: ${session_id}`);
+    const historyUrl = `${API_SESSION_HISTORY_URL_BASE}/${session_id}`;
+    const headers = createAuthHeaders();
 
-  try {
-      const response = await fetch(historyUrl, { method: 'GET', headers });
+    try {
+        const response = await fetch(historyUrl, { method: 'GET', headers });
+        const data = await response.json().catch(err => {
+            console.error("Erro ao parsear JSON de getSessionHistory:", err);
+            throw new Error(t('invalidHistoryResponse', 'Resposta inválida (não JSON) ao buscar histórico.'));
+        });
 
-      if (response.status === 404) {
-          console.log(`Histórico não encontrado (404) para session_id: ${session_id}`);
-          return { history: [] }; // Retorna objeto padrão para consistência
-      }
-      const data = await response.json(); // Tenta ler JSON mesmo em erro
-      if (!response.ok) {
-          throw new Error(data.error || `Erro ${response.status}`);
-      }
-      return data || { history: [] }; // Retorna { history: [...] } ou objeto padrão
-
-  } catch (err) {
-      console.error(`Erro ao recuperar histórico (session: ${session_id}):`, err);
-      showError('errorFetchingHistory', `Falha ao carregar histórico: ${err.message}`);
-      throw err; // Relança para loadSessionData tratar
-  }
+        if (!response.ok) {
+            if (response.status === 404) {
+                console.log(`Histórico não encontrado (404) para session_id: ${session_id}`);
+                return { history: [] };
+            }
+            throw new Error(data.error || t('errorFetchingHistoryStatus', `Erro ${response.status}`));
+        }
+        return data || { history: [] };
+    } catch (err) {
+        console.error(`Erro ao recuperar histórico (session: ${session_id}):`, err);
+        showError('errorFetchingHistory', t('errorFetchingHistory', `Falha ao carregar histórico: ${err.message}`));
+        throw err;
+    }
 }
 
-// <<< NOVA FUNÇÃO para buscar assistentes >>>
 /**
-* Busca a lista de assistentes associados ao Master logado.
-* @returns {Promise<Array<Object>>} Uma promessa que resolve para a lista de assistentes.
-*/
+ * Busca a lista de assistentes.
+ */
 export async function getAssistants() {
-  console.log("Buscando lista de assistentes...");
-  const headers = createAuthHeaders();
-  if (!headers['Authorization']) {
-      throw new Error("Token de autenticação não encontrado."); // Não deve acontecer se a página for protegida
-  }
+    console.log("Buscando lista de assistentes...");
+    const headers = createAuthHeaders();
+    if (!headers['Authorization']) throw new Error(t('authTokenNotFound', 'Token de autenticação não encontrado.'));
 
-  try {
-      const response = await fetch(API_ASSISTANTS_URL, { // <<< Usa URL do config >>>
-          method: 'GET',
-          headers: headers
-      });
-      const data = await response.json();
-      if (!response.ok) {
-          throw new Error(data.error || `Erro ${response.status}`);
-      }
-      console.log("Lista de assistentes recebida:", data.assistants);
-      return data.assistants || [];
-  } catch (err) {
-      console.error('Erro detalhado ao buscar assistentes:', err);
-      throw err; // Relança para a UI tratar
-  }
+    try {
+        const response = await fetch(API_ASSISTANTS_URL, { method: 'GET', headers });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || t('errorFetchingAssistantsStatus', `Erro ${response.status}`));
+        return data.assistants || [];
+    } catch (err) {
+        console.error('Erro detalhado ao buscar assistentes:', err);
+        showError('apiError', t('errorFetchingAssistants', `Erro ao buscar assistentes: ${err.message}`));
+        throw err;
+    }
 }
 
-// <<< NOVA FUNÇÃO para adicionar assistente >>>
 /**
-* Envia os dados de um novo assistente para o backend.
-* @param {string} username Nome de usuário do novo assistente.
-* @param {string} password Senha do novo assistente.
-* @returns {Promise<Object>} Uma promessa que resolve com os dados do assistente criado.
-*/
+ * Adiciona um novo assistente.
+ */
 export async function addAssistant(username, password) {
-  console.log(`Tentando adicionar assistente: ${username}`);
-  const headers = createAuthHeaders();
-  if (!headers['Authorization']) {
-      throw new Error("Token de autenticação não encontrado.");
-  }
+    console.log(`Tentando adicionar assistente: ${username}`);
+    const headers = createAuthHeaders();
+    if (!headers['Authorization']) throw new Error(t('authTokenNotFound', 'Token de autenticação não encontrado.'));
 
-  try {
-      const response = await fetch(API_ASSISTANTS_URL, { // <<< Usa URL do config >>>
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify({ username, password }) // Envia username e password
-      });
-
-      const data = await response.json(); // Tenta ler JSON mesmo em erro
-      if (!response.ok) {
-          throw new Error(data.error || `Erro ${response.status}`);
-      }
-      console.log("Assistente adicionado com sucesso:", data.assistant);
-      return data; // Retorna a resposta completa de sucesso { success: true, message: ..., assistant: {...} }
-  } catch (err) {
-      console.error('Erro detalhado ao adicionar assistente:', err);
-      throw err; // Relança para a UI tratar
-  }
+    try {
+        const response = await fetch(API_ASSISTANTS_URL, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || t('errorAddingAssistantStatus', `Erro ${response.status}`));
+        return data;
+    } catch (err) {
+        console.error('Erro detalhado ao adicionar assistente:', err);
+        throw err;
+    }
 }
 
-
-// --- Funções API (dentro deste arquivo por enquanto, idealmente mover para api.js) ---
-
-
-/** Busca a lista de clientes */
-
+/**
+ * Busca a lista de clientes.
+ */
 export async function getClients() {
     console.log("Buscando lista de clientes...");
     const headers = createAuthHeaders();
-    if (!headers['Authorization']) throw new Error("Token não encontrado.");
+    if (!headers['Authorization']) throw new Error(t('authTokenNotFound', 'Token não encontrado.'));
 
-    const response = await fetch(API_CLIENTS_URL, { method: 'GET', headers });
-    if (!response.ok) {
-        let errorMsg = `Erro ${response.status} ao buscar clientes.`;
-        try { const data = await response.json(); errorMsg = data.error || errorMsg; } catch (e) {}
-        throw new Error(errorMsg);
+    try {
+        const response = await fetch(API_CLIENTS_URL, { method: 'GET', headers });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || t('errorFetchingClientsStatus', `Erro ${response.status}`));
+        return data.clients || [];
+    } catch (err) {
+        console.error("Erro ao buscar clientes:", err);
+        showError('apiError', t('errorFetchingClients', `Erro ao buscar clientes: ${err.message}`));
+        throw err;
     }
-    const data = await response.json();
-    console.log("Clientes recebidos:", data.clients);
-    return data.clients || [];
-}
-
-/** Adiciona um novo cliente */
-export async function addClient(name, cpf, dob) {
-    console.log(`Tentando adicionar cliente: ${name}`);
-    const headers = createAuthHeaders();
-    if (!headers['Authorization']) throw new Error("Token não encontrado.");
-
-    const body = { name };
-    if (cpf) body.cpf = cpf.replace(/\D/g, ''); // Envia CPF limpo
-    if (dob) body.dob = dob; // Envia data no formato YYYY-MM-DD
-
-    const response = await fetch(API_CLIENTS_URL, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body)
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-        throw new Error(data.error || `Erro ${response.status}`);
-    }
-    console.log("Cliente adicionado:", data.client);
-    return data; // Retorna { success: true, message: ..., client: {...} }
 }
 
 /**
- * Busca a lista de sessões de análise para um cliente específico.
- * @param {string} clientId O ID do cliente.
- * @returns {Promise<Array<Object>>} Uma promessa que resolve para a lista de sessões.
+ * Adiciona um novo cliente.
  */
-export async function getClientSessions(clientId) {
-    if (!clientId) {
-      console.error("getClientSessions chamado sem clientId");
-      throw new Error("ID do cliente não fornecido.");
-    }
-    console.log(`Buscando sessões para cliente ID: ${clientId}`);
-    const sessionsUrl = `${API_CLIENTS_URL}/${clientId}/sessions`; // Constrói a URL correta
-    const headers = createAuthHeaders(); // Pega cabeçalhos com token
-  
-    if (!headers['Authorization']) {
-      // Redirecionar para login ou lançar erro mais específico?
-      console.error("Token de autenticação não encontrado para buscar sessões.");
-      throw new Error("Autenticação necessária.");
-    }
-  
+export async function addClient(name, cpf, dob) {
+    console.log(`Tentando adicionar cliente: ${name}`);
+    const headers = createAuthHeaders();
+    if (!headers['Authorization']) throw new Error(t('authTokenNotFound', 'Token não encontrado.'));
+
+    const body = { name };
+    if (cpf) body.cpf = cpf.replace(/\D/g, '');
+    if (dob) body.dob = dob;
+
     try {
-      const response = await fetch(sessionsUrl, { method: 'GET', headers });
-      const data = await response.json(); // Tenta ler JSON mesmo em caso de erro
-  
-      if (!response.ok) {
-        // Trata erros 403 (proibido) e 404 (não encontrado) especificamente se necessário
-        if (response.status === 404 || response.status === 403) {
-          console.warn(`Sessões não encontradas ou acesso negado para cliente ${clientId} (Status: ${response.status})`);
-          // Poderia retornar vazio ou lançar erro dependendo de como a UI quer tratar
-          // Vamos retornar vazio por enquanto
-          return []; // Retorna array vazio para indicar que não há sessões ou acesso negado
-        }
-        // Outros erros
-        throw new Error(data.error || `Erro ${response.status}`);
-      }
-  
-      console.log("Sessões recebidas:", data.sessions);
-      return data.sessions || []; // Retorna a lista ou um array vazio
-  
+        const response = await fetch(API_CLIENTS_URL, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || t('errorAddingClientStatus', `Erro ${response.status}`));
+        return data;
     } catch (err) {
-      console.error(`Erro detalhado ao buscar sessões para cliente ${clientId}:`, err);
-      // Poderia usar showError aqui, mas é melhor lançar para o chamador (client-sessions.js) tratar
-      throw new Error(`Falha ao buscar histórico do cliente: ${err.message}`);
+        console.error("Erro ao adicionar cliente:", err);
+        throw err;
     }
-  }
+}
+
+export async function addAttendance(clientId, description) {
+    const t = getT();
+    console.log(`Tentando adicionar atendimento para cliente ID: ${clientId}`);
+    const headers = createAuthHeaders();
+    if (!headers['Authorization']) throw new Error(t('authTokenNotFound', 'Token de autenticação não encontrado.'));
+
+    const body = { client_id: clientId, description };
+    try {
+        const response = await fetch(`${API_BASE_URL}/attendances`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || t('errorAddingAttendance', `Erro ${response.status} ao adicionar atendimento.`));
+        return data;
+    } catch (err) {
+        console.error("Erro ao adicionar atendimento:", err);
+        throw err;
+    }
+}
+
+/**
+ * Busca a lista de atendimentos para um cliente específico.
+ */
+export async function getClientAttendances(clientId) {
+    if (!clientId) {
+        console.warn("getClientAttendances chamado sem clientId");
+        return { attendances: [] };
+    }
+    console.log(`Buscando atendimentos para cliente ID: ${clientId}`);
+    const attendancesUrl = `${API_BASE_URL}/clients/${clientId}/attendances`;
+    const headers = createAuthHeaders();
+    const t = getT();
+
+    try {
+        const response = await fetch(attendancesUrl, { method: 'GET', headers });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || t('errorFetchingClientAttendancesStatus', `Erro ${response.status} ao buscar atendimentos.`));
+        }
+        return data || { attendances: [] };
+    } catch (err) {
+        console.error(`Erro ao buscar atendimentos para cliente ${clientId}:`, err);
+        showError('errorFetchingClientAttendances', t('errorFetchingClientAttendances', `Erro ao buscar atendimentos: ${err.message}`));
+        throw err;
+    }
+}
+
+/**
+ * Busca as sessões de análise para um atendimento específico.
+ */
+export async function getAttendanceSessions(attendanceId) {
+    if (!attendanceId) {
+        console.warn("getAttendanceSessions chamado sem attendanceId");
+        return { sessions: [] };
+    }
+    console.log(`Buscando sessões para atendimento ID: ${attendanceId}`);
+    const sessionsUrl = `${API_BASE_URL}/attendances/${attendanceId}/sessions`;
+    const headers = createAuthHeaders();
+
+    try {
+        const response = await fetch(sessionsUrl, { method: 'GET', headers });
+        const data = await response.json();
+        if (!response.ok) {
+            if (response.status === 404) return { sessions: [] };
+            throw new Error(data.error || t('errorFetchingAttendanceSessionsStatus', `Erro ${response.status} ao buscar sessões do atendimento.`));
+        }
+        return data || { sessions: [] };
+    } catch (err) {
+        console.error(`Erro ao buscar sessões para atendimento ${attendanceId}:`, err);
+        showError('errorFetchingAttendanceSessions', t('errorFetchingAttendanceSessions', `Erro ao buscar sessões do atendimento: ${err.message}`));
+        throw err;
+    }
+}
+
+/**
+ * Busca detalhes de um atendimento específico.
+ */
+export async function fetchAttendance(attendanceId) {
+    if (!attendanceId) throw new Error(t('attendanceIdNotProvided', 'ID do atendimento não fornecido.'));
+    console.log(`Buscando detalhes do atendimento ID: ${attendanceId}`);
+    const attendanceUrl = `${API_BASE_URL}/attendances/${attendanceId}`;
+    const headers = createAuthHeaders();
+
+    try {
+        const response = await fetch(attendanceUrl, { method: 'GET', headers });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || t('errorFetchingAttendanceStatus', `Erro ${response.status} ao buscar atendimento.`));
+        }
+        return data.attendance;
+    } catch (error) {
+        console.error(`Erro ao buscar atendimento ${attendanceId}:`, error);
+        showError('errorFetchingAttendance', t('errorFetchingAttendance', `Erro ao buscar atendimento: ${error.message}`));
+        throw error;
+    }
+}

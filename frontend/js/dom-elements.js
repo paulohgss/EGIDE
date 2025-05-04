@@ -1,79 +1,74 @@
-export const DOM = {
-  body: null,
-  languageSelect: null,
-  themeToggle: null,
-  caseForm: null,
-  entradaUsuario: null,
-  errorMessage: null,
-  submitButton: null,
-  submitSpinner: null,
-  manualActionButtons: null,
-  respostaFinal: null,
-  filterSelect: null,
-  clearLogsBtn: null,
-  exportLogsBtn: null,
-  logsIndividuais: null,
-  downloadPdfBtn: null,
-  respostaUsuarioBox: null,
-  respostaUsuarioInput: null,
-  respondSupervisorBtn: null,
-  i18nElements: {
-      title: null,
-      caseLabel: null,
-      caseHelp: null,
-      submitText: null,
-      manualActions: null,
-      manualRedator: null,
-      manualMedico: null,
-      manualEstrategista: null,
-      manualSupervisor: null,
-      clearLogs: null,
-      exportLogs: null,
-      filterLabel: null,
-      filterAll: null,
-      downloadPdf: null,
-      supervisorRequest: null,
-      responseHelp: null,
-      respondSupervisor: null,
-  },
+// frontend/js/dom-elements.js
+let DOM = {};
 
-  // Método para inicializar os elementos
-  initialize() {
-      this.body = document.body;
-      this.languageSelect = document.getElementById('languageSelect');
-      this.themeToggle = document.getElementById('themeToggle');
-      this.caseForm = document.getElementById('caseForm');
-      this.entradaUsuario = document.getElementById('entradaUsuario');
-      this.errorMessage = document.getElementById('errorMessage');
-      this.submitButton = document.getElementById('submitButton');
-      this.submitSpinner = document.querySelector('#submitButton .loading-spinner');
-      this.manualActionButtons = document.querySelectorAll('[data-bot-role]');
-      this.respostaFinal = document.getElementById('respostaFinal');
-      this.filterSelect = document.getElementById('filterSelect');
-      this.clearLogsBtn = document.getElementById('clearLogsBtn');
-      this.exportLogsBtn = document.getElementById('exportLogsBtn');
-      this.logsIndividuais = document.getElementById('logsIndividuais');
-      this.downloadPdfBtn = document.getElementById('downloadPdfBtn');
-      this.respostaUsuarioBox = document.getElementById('respostaUsuarioBox');
-      this.respostaUsuarioInput = document.getElementById('respostaUsuarioInput');
-      this.respondSupervisorBtn = document.getElementById('respondSupervisorBtn');
+export function initializeDOM() {
+    DOM = {
+        body: document.body,
+        languageSelect: document.getElementById('languageSelect'),
+        themeToggle: document.getElementById('themeToggle'), // Para chat.html
+        themeToggleIndex: document.getElementById('theme-toggle'), // Para index.html
+        caseForm: document.getElementById('caseForm'),
+        entradaUsuario: document.getElementById('entradaUsuario'),
+        errorMessage: document.getElementById('errorMessage'),
+        submitButton: document.getElementById('submitButton'),
+        submitSpinner: document.querySelector('#submitButton .loading-spinner'),
+        manualActionButtons: document.querySelectorAll('[data-bot-role]'),
+        respostaFinal: document.getElementById('respostaFinal'),
+        filterSelect: document.getElementById('filterSelect'),
+        clearLogsBtn: document.getElementById('clearLogsBtn'),
+        exportLogsBtn: document.getElementById('exportLogsBtn'),
+        logsIndividuais: document.getElementById('logsIndividuais'),
+        downloadPdfBtn: document.getElementById('downloadPdfBtn'),
+        respostaUsuarioBox: document.getElementById('respostaUsuarioBox'),
+        respostaUsuarioInput: document.getElementById('respostaUsuarioInput'),
+        respondSupervisorBtn: document.getElementById('respondSupervisorBtn'),
+        // Seletores para index.html
+        userGreeting: document.getElementById('user-greeting'),
+        logoutLink: document.getElementById('logout-link'),
+        notificationsList: document.getElementById('notifications-list'),
+        clientsLoading: document.getElementById('clients-loading'),
+        clientsError: document.getElementById('clients-error'),
+        recentClientsTableBody: document.getElementById('recent-clients-table-body'),
+        noClientsMessage: document.getElementById('no-clients-message'),
+        assistantsSummary: document.getElementById('assistants-summary'),
+        assistantsCount: document.getElementById('assistants-count'),
+        manageAssistantsCard: document.getElementById('manage-assistants-card'),
+        // Seletores para add-attendance.html
+        pageTitle: document.getElementById('page-title'),
+        attendanceForm: document.getElementById('attendance-form'),
+        attendanceDescription: document.getElementById('attendance-description'),
+        attendanceMessage: document.getElementById('attendance-message'),
+        backButton: document.getElementById('back-button'),
+        // Elementos para traduções dinâmicas
+        i18nElements: {
+            title: document.getElementById('title'),
+            caseLabel: document.getElementById('caseLabel'),
+            caseHelp: document.getElementById('caseHelp'),
+            submitText: document.getElementById('submitText'),
+            manualActions: document.getElementById('manualActions'),
+            manualRedator: document.getElementById('manualRedator'),
+            manualMedico: document.getElementById('manualMedico'),
+            manualEstrategista: document.getElementById('manualEstrategista'),
+            manualSupervisor: document.getElementById('manualSupervisor'),
+            clearLogs: document.getElementById('clearLogs'),
+            exportLogs: document.getElementById('exportLogs'),
+            filterLabel: document.getElementById('filterLabel'),
+            filterAll: document.getElementById('filterAll'),
+            downloadPdf: document.getElementById('downloadPdf'),
+            supervisorRequest: document.getElementById('supervisorRequest'),
+            responseHelp: document.getElementById('responseHelp'),
+            respondSupervisor: document.getElementById('respondSupervisor'),
+            mainTitle: document.getElementById('main-title'),
+        }
+    };
+    console.log("[initializeDOM] DOM inicializado:", {
+        logsIndividuaisExists: !!DOM.logsIndividuais,
+        bodyExists: !!DOM.body,
+        userGreetingExists: !!DOM.userGreeting,
+        recentClientsTableBodyExists: !!DOM.recentClientsTableBody,
+        attendanceFormExists: !!DOM.attendanceForm
+    });
+    return DOM;
+}
 
-      this.i18nElements.title = document.getElementById('title');
-      this.i18nElements.caseLabel = document.getElementById('caseLabel');
-      this.i18nElements.caseHelp = document.getElementById('caseHelp');
-      this.i18nElements.submitText = document.getElementById('submitText');
-      this.i18nElements.manualActions = document.getElementById('manualActions');
-      this.i18nElements.manualRedator = document.getElementById('manualRedator');
-      this.i18nElements.manualMedico = document.getElementById('manualMedico');
-      this.i18nElements.manualEstrategista = document.getElementById('manualEstrategista');
-      this.i18nElements.manualSupervisor = document.getElementById('manualSupervisor');
-      this.i18nElements.clearLogs = document.getElementById('clearLogs');
-      this.i18nElements.exportLogs = document.getElementById('exportLogs');
-      this.i18nElements.filterLabel = document.getElementById('filterLabel');
-      this.i18nElements.filterAll = document.getElementById('filterAll');
-      this.i18nElements.downloadPdf = document.getElementById('downloadPdf');
-      this.i18nElements.supervisorRequest = document.getElementById('supervisorRequest');
-      this.i18nElements.responseHelp = document.getElementById('responseHelp');
-      this.i18nElements.respondSupervisor = document.getElementById('respondSupervisor');
-  }
-};
+export { DOM };

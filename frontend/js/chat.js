@@ -1,39 +1,73 @@
 import * as Config from './config.js';
 import { AppState, resetCaseState, SESSION_ID_STORAGE_KEY } from './state.js';
-import { DOM } from './dom-elements.js';
+import { DOM, initializeDOM } from './dom-elements.js';
 import { showError, toggleSpinner, updateElementVisibility, resetUIForNewCase, showFinalResponse, clearProgress, showProgress } from './ui.js';
 import { initializeTheme, toggleTheme } from './theme.js';
-import { initializeI18n, updateContent, changeLanguage, getBotLogPrefix, i18nInstance } from './i18n.js';
+import { initializeI18n, updateContent, getBotLogPrefix, i18nInstance } from './i18n.js';
 import { callBotAPI, getSessionHistory } from './api.js';
 import { addToHistoryAndLog, renderLogs, handleClearLogs, exportLogs, formatBackendHistoryToLogs, formatBackendHistoryToString } from './logs.js';
 import { downloadConversationAsPdf } from './pdf.js';
 
 async function loadSessionData(sessionId) {
-    if (!sessionId) return;
+    if (!sessionId) {
+        console.warn("[loadSessionData] sessionId não fornecido.");
+        return;
+    }
 
     console.log(`[loadSessionData] Tentando carregar dados para a sessão: ${sessionId}`);
-    showProgress('infoLoadingHistory', 'Carregando histórico...');
+    const t = i18nInstance.t.bind(i18nInstance);
+    showProgress('infoLoadingHistory', t('loadingHistory', 'Carregando histórico...'));
     toggleSpinner(true);
     try {
         const sessionData = await getSessionHistory(sessionId);
-        console.log(`[loadSessionData] Dados retornados por getSessionHistory:`, sessionData);
+        console.log(`[loadSessionData] Dados retornados por getSessionHistory:`, JSON.stringify(sessionData, null, 2));
 
         const backendHistory = sessionData?.history || sessionData || [];
-        console.log(`[loadSessionData] backendHistory extraído:`, backendHistory);
+        console.log(`[loadSessionData] backendHistory extraído:`, JSON.stringify(backendHistory, null, 2));
 
         if (Array.isArray(backendHistory) && backendHistory.length > 0) {
             console.log(`[loadSessionData] Histórico contém ${backendHistory.length} entradas.`);
 
             AppState.historicoConversa = formatBackendHistoryToString(backendHistory);
-            console.log(`[loadSessionData] AppState.historicoConversa preenchido:`, AppState.historicoConversa.substring(0, 100) + "...");
+            console.log(`[loadSessionData] AppState.historicoConversa preenchido:`, AppState.historicoConversa.substring(0, 100 100) + "...");
 
             AppState.logs = formatBackendHistoryToLogs(backendHistory);
-            console.log(`[loadSessionData] AppState.logs preenchido com ${AppState.logs.length} entradas:`, AppState.logs);
+            console.log(`[loadSessionData] AppState.logs preenchido com ${AppState.logs.length} entradas:`, JSON.stringify(AppState.logs, null, 2));
 
             AppState.currentSessionId = sessionId;
             AppState.filtroAtual = 'ALL';
 
+            console.log("[loadSessionData] Chamando renderLogs...");
             renderLogs();
+            if (DOM.logsIndividuais) {
+                DOM.logsIndividuais.style.display = 'block';
+                updateElementVisibility(DOM.logsIndividuais, true);
+                requestAnimationFrame(() => {
+                    if (DOM.logsIndividuais.classList.contains('d-none')) {
+                        console.warn("[loadSessionData] #logsIndividuais ainda com d-none, forçando remoção.");
+                        DOM.logsIndividuais.classList.remove('d-none');
+                    }
+                    DOM.logsIndividuais.style.display = 'block';
+                    console.log("[loadSessionData] Classe final de #logsIndividuais:", DOM.logsIndividuais.className);
+                    console.log("[loadSessionData] Estilos computados de #logsIndividuais:", {
+                        display: window.getComputedStyle(DOM.logsIndividuais).display,
+                        visibility: window.getComputedStyle(DOM.logsIndividuais).visibility,
+                        opacity: window.getComputedStyle(DOM.logsIndividuais).opacity
+                    });
+                    const logEntries = DOM.logsIndividuais.querySelectorAll('.log-entry');
+                    logEntries.forEach((entry, index) => {
+                        console.log(`[loadSessionData] Estilos computados do log-entry ${index + 1}:`, {
+                            display: window.getComputedStyle(entry).display,
+                            visibility: window.getComputedStyle(entry).visibility,
+                            opacity: window.getComputedStyle(entry).opacity
+                        });
+                    });
+                });
+                console.log("[loadSessionData] #logsIndividuais visível, conteúdo:", DOM.logsIndividuais.innerHTML);
+            } else {
+                console.error("[loadSessionData] Elemento #logsIndividuais não encontrado.");
+            }
+            console.log("[loadSessionData] renderLogs chamado.");
 
             const lastSupervisorEntry = [...backendHistory].reverse().find(
                 entry => entry.type === 'bot_response' && entry.role === 'supervisor'
@@ -41,15 +75,15 @@ async function loadSessionData(sessionId) {
 
             if (lastSupervisorEntry?.content) {
                 AppState.ultimaMensagemSupervisor = lastSupervisorEntry.content;
+                console.log(`[loadSessionData] Exibindo resposta final do supervisor:`, AppState.ultimaMensagemSupervisor.substring(0, 50) + "...");
                 showFinalResponse(AppState.ultimaMensagemSupervisor);
                 updateElementVisibility(DOM.downloadPdfBtn, true);
                 checkIfSupervisorNeedsInput(AppState.ultimaMensagemSupervisor);
-                console.log(`[loadSessionData] Última resposta do supervisor encontrada e exibida:`, AppState.ultimaMensagemSupervisor.substring(0, 50) + "...");
             } else {
+                console.log(`[loadSessionData] Nenhuma resposta do supervisor encontrada.`);
                 if (DOM.respostaFinal) DOM.respostaFinal.textContent = '';
                 updateElementVisibility(DOM.respostaFinal, false);
                 updateElementVisibility(DOM.downloadPdfBtn, false);
-                console.log(`[loadSessionData] Nenhuma resposta do supervisor encontrada.`);
             }
             console.log(`[loadSessionData] Sessão ${sessionId} restaurada com histórico completo.`);
         } else {
@@ -59,6 +93,7 @@ async function loadSessionData(sessionId) {
             AppState.filtroAtual = 'ALL';
             resetUIForNewCase();
             renderLogs();
+            updateElementVisibility(DOM.logsIndividuais, false);
         }
     } catch (error) {
         console.error(`[loadSessionData] Erro ao carregar histórico da sessão ${sessionId}:`, error);
@@ -67,120 +102,13 @@ async function loadSessionData(sessionId) {
         AppState.filtroAtual = 'ALL';
         resetUIForNewCase();
         renderLogs();
+        updateElementVisibility(DOM.logsIndividuais, false);
+        showError('errorSessionNotFound', t('errorSessionNotFound', `Não foi possível carregar o histórico: ${error.message}`));
     } finally {
         clearProgress();
         toggleSpinner(false);
     }
 }
-
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log("Aplicação Égide Iniciando...");
-
-    // Inicializa os elementos DOM após o DOM estar pronto
-    DOM.initialize();
-    console.log("Elementos DOM inicializados:", {
-        logsIndividuaisExists: !!DOM.logsIndividuais,
-        respostaFinalExists: !!DOM.respostaFinal
-    });
-
-    const token = localStorage.getItem('token');
-    if (!token && !window.location.pathname.endsWith('/login.html') && !window.location.pathname.endsWith('/register.html')) {
-        console.log("Nenhum token encontrado, redirecionando para login.");
-        window.location.href = 'login.html';
-        return;
-    }
-
-    const backButton = document.getElementById('back-button');
-    if (backButton) {
-        const cameFrom = sessionStorage.getItem('cameFrom');
-        console.log("Origem da navegação (cameFrom):", cameFrom);
-
-        if (cameFrom === 'client-sessions') {
-            console.warn("Navegação de volta para client-sessions.html ainda não implementada completamente (falta client_id). Voltando para clients.html.");
-            backButton.href = 'clients.html';
-        } else if (cameFrom === 'clients') {
-            backButton.href = 'clients.html';
-        } else if (cameFrom === 'index') {
-            backButton.href = 'index.html';
-        } else {
-            backButton.href = 'index.html';
-        }
-        console.log("Botão 'Voltar' configurado para:", backButton.href);
-        sessionStorage.removeItem('cameFrom');
-    } else {
-        console.warn("Botão #back-button não encontrado no DOM.");
-    }
-
-    initializeTheme();
-    initializeI18n(async (err) => {
-        if (err) {
-            console.error("Falha ao inicializar i18n:", err);
-            if (!window.location.pathname.endsWith('/login.html') && !window.location.pathname.endsWith('/register.html')) {
-                alert("Erro ao carregar configurações de idioma.");
-            }
-            return;
-        }
-
-        if (!window.location.pathname.endsWith('/login.html') && !window.location.pathname.endsWith('/register.html')) {
-            const userGreetingElement = document.getElementById('user-greeting');
-            const userId = localStorage.getItem('user_id');
-            if (token && userGreetingElement && userId) {
-                userGreetingElement.textContent = `Olá! (ID: ${userId})`;
-                userGreetingElement.classList.remove('d-none');
-            }
-
-            setupEventListeners();
-
-            const selectedClientId = sessionStorage.getItem('selectedClientId');
-            const selectedClientName = sessionStorage.getItem('selectedClientName');
-
-            if (selectedClientId) {
-                console.log(`Cliente selecionado encontrado: ${selectedClientName} (ID: ${selectedClientId}). Preparando para nova análise.`);
-                sessionStorage.removeItem('selectedClientId');
-                sessionStorage.removeItem('selectedClientName');
-
-                localStorage.removeItem(SESSION_ID_STORAGE_KEY);
-                AppState.currentSessionId = null;
-                AppState.filtroAtual = 'ALL';
-
-                resetCaseState();
-                resetUIForNewCase();
-                renderLogs();
-
-                AppState.pendingClientId = selectedClientId;
-                AppState.pendingClientName = selectedClientName;
-
-                if (DOM.entradaUsuario) {
-                    DOM.entradaUsuario.value = '';
-                    const placeholderText = `Iniciando análise para o cliente: ${AppState.pendingClientName}.\n\nDescreva o caso ou a pergunta inicial:`;
-                    DOM.entradaUsuario.placeholder = placeholderText;
-                    DOM.entradaUsuario.focus();
-                }
-            } else {
-                console.log("Nenhum cliente selecionado via sessionStorage. Verificando localStorage para sessão anterior...");
-                AppState.pendingClientId = null;
-                AppState.pendingClientName = null;
-                AppState.filtroAtual = 'ALL';
-                const savedSessionId = localStorage.getItem(SESSION_ID_STORAGE_KEY);
-                if (savedSessionId) {
-                    console.log(`Encontrado session_id salvo: ${savedSessionId}. Carregando...`);
-                    await loadSessionData(savedSessionId);
-                } else {
-                    console.log("Nenhum session_id encontrado no localStorage. Pronto para nova análise genérica.");
-                    resetUIForNewCase();
-                    renderLogs();
-                    if (DOM.entradaUsuario) {
-                        DOM.entradaUsuario.placeholder = i18nInstance.t('caseHelp');
-                    }
-                }
-            }
-
-            if (DOM.languageSelect) DOM.languageSelect.value = AppState.currentLanguage;
-        } else {
-            console.log(`Página de autenticação (${window.location.pathname}). Lógica principal pulada.`);
-        }
-    });
-});
 
 function handleLogout() {
     console.log("Executando logout...");
@@ -222,121 +150,134 @@ async function mainCaseFlow(initialInput) {
     let currentSessionId = AppState.currentSessionId;
     const isNewSessionFlow = !currentSessionId;
 
-    const clientIdToLink = AppState.pendingClientId;
+    const clientIdToLink = AppState.pendingClientId; // client_1746308221062_6csvs
     const clientNameContext = AppState.pendingClientName;
+    const attendanceId = sessionStorage.getItem('selectedAttendanceId'); // attendance_1746313026885_5d4no
     AppState.pendingClientId = null;
     AppState.pendingClientName = null;
+    sessionStorage.removeItem('selectedAttendanceId');
 
-    if (isNewSessionFlow) {
-        console.log(`Iniciando nova sessão ${clientIdToLink ? 'para cliente ' + clientIdToLink : 'genérica'}.`);
-        renderLogs();
-    } else {
-        console.log(`Continuando análise na sessão existente: ${currentSessionId}`);
-        resetUIForNewCase();
-        renderLogs();
-    }
+    console.log('Chamando callBotAPI para redator:', {
+        initialInput,
+        user_id,
+        clientIdToLink,
+        attendanceId
+    });
 
     toggleSpinner(true);
 
     let logInitialInput = initialInput;
     if (isNewSessionFlow && clientNameContext) {
-        logInitialInput = `(Cliente: ${clientNameContext}) ${initialInput}`;
+        logInitialInput = `(${t('client', 'Cliente')}: ${clientNameContext}) ${initialInput}`;
     }
     addToHistoryAndLog('usuario', logInitialInput);
 
-    let medicalResponse = "", strategicResponse = "", technicalReport = "", finalReport = "", finalSupervisorResponse = "";
+    let technicalReport = "";
+    let medicalResponse = "";
+    let strategicResponse = "";
+    let finalReport = "";
+    let finalSupervisorResponse = "";
     let hasError = false;
 
     try {
         console.log("Etapa 1: Chamando Redator para relatório técnico inicial...");
-        addToHistoryAndLog('supervisor', t("supervisorRequestingRedactor"));
+        const redactorRequestMsg = t("supervisorRequestingRedactor");
+        addToHistoryAndLog('supervisor', redactorRequestMsg);
+        renderLogs();
+        technicalReport = await callBotAPI(
+            "redator",
+            initialInput,
+            null,
+            clientIdToLink,
+            attendanceId
+        );
+        currentSessionId = AppState.currentSessionId;
+        if (!currentSessionId) {
+            throw new Error(t('sessionIdNotSet', "Falha ao obter/definir o ID da sessão após a primeira chamada API."));
+        }
+        addToHistoryAndLog('redator', technicalReport);
+        renderLogs();
+
+        console.log("Etapa 2: Chamando Médico para análise médica...");
+        const medicalRequestMsg = t("supervisorRequestingMedical");
+        addToHistoryAndLog('supervisor', medicalRequestMsg);
+        renderLogs();
         try {
-            technicalReport = await callBotAPI("redator", initialInput, null, user_id, clientIdToLink);
-            currentSessionId = AppState.currentSessionId;
-            if (!currentSessionId) {
-                throw new Error("Falha ao obter/definir o ID da sessão após a primeira chamada API.");
-            }
-            addToHistoryAndLog('redator', technicalReport);
-            console.log("Redator respondeu com sucesso:", technicalReport.substring(0, 50) + "...");
+            const medicalPrompt = `${technicalReport}\n\nCom base no relatório técnico acima, forneça uma análise médica detalhada.`;
+            medicalResponse = await callBotAPI("medico", medicalPrompt, currentSessionId, user_id);
+            addToHistoryAndLog('medico', medicalResponse);
+            renderLogs();
         } catch (err) {
-            console.error("Erro ao chamar Redator:", err);
-            showError('errorCallingBot', `Erro ao chamar Redator: ${err.message}`, { role: 'redator' });
+            console.error("Erro na Etapa 2 (Médico):", err);
+            showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Médico: ${err.message}`), { role: 'medico' });
             hasError = true;
-            technicalReport = "Erro ao obter relatório técnico.";
-            addToHistoryAndLog('redator', technicalReport);
+            medicalResponse = t('errorFetchingMedicalAnalysis', 'Erro ao obter análise médica.');
+            addToHistoryAndLog('medico', medicalResponse);
+            renderLogs();
+            throw err;
         }
 
-        const needsMedicalEval = containsKeywords(initialInput, Config.KEYWORDS_INCAPACIDADE);
-        if (needsMedicalEval) {
-            console.log("Etapa 2: Chamando Médico para avaliação...");
-            addToHistoryAndLog('supervisor', t("supervisorMedicalEvaluation"));
-            const medicalInput = `Descrição do Caso:\n${initialInput}\n\nRelatório Técnico Inicial:\n${technicalReport}`;
-            try {
-                medicalResponse = await callBotAPI("medico", medicalInput, currentSessionId, user_id);
-                addToHistoryAndLog('medico', medicalResponse);
-                console.log("Médico respondeu com sucesso:", medicalResponse.substring(0, 50) + "...");
-            } catch (err) {
-                console.error("Erro ao chamar Médico:", err);
-                showError('errorCallingBot', `Erro ao chamar Médico: ${err.message}`, { role: 'médico' });
-                hasError = true;
-                medicalResponse = "Erro ao obter avaliação médica.";
-                addToHistoryAndLog('medico', medicalResponse);
-            }
-        } else {
-            console.log("Etapa 2: Avaliação médica não necessária.");
-            addToHistoryAndLog('supervisor', t("supervisorNoMedical"));
-            medicalResponse = t('noMedicalEvaluationNeeded', 'N/A');
-        }
-
-        console.log("Etapa 3: Chamando Estrategista...");
-        addToHistoryAndLog('supervisor', t("supervisorConsultingStrategist"));
-        const strategistInput = `Descrição do Caso:\n${initialInput}\n\nRelatório Técnico:\n${technicalReport}\n\nAvaliação Médica:\n${medicalResponse || 'Nenhuma realizada'}`;
+        console.log("Etapa 3: Chamando Estratégico para análise estratégica...");
+        const strategicRequestMsg = t("supervisorRequestingStrategic");
+        addToHistoryAndLog('supervisor', strategicRequestMsg);
+        renderLogs();
         try {
-            strategicResponse = await callBotAPI("estrategista", strategistInput, currentSessionId, user_id);
-            addToHistoryAndLog('estrategista', strategicResponse);
-            console.log("Estrategista respondeu com sucesso:", strategicResponse.substring(0, 50) + "...");
+            const strategicPrompt = `${technicalReport}\n\n${medicalResponse}\n\nCom base no relatório técnico e na análise médica acima, forneça uma análise estratégica para o caso.`;
+            strategicResponse = await callBotAPI("estrategico", strategicPrompt, currentSessionId, user_id);
+            addToHistoryAndLog('estrategico', strategicResponse);
+            renderLogs();
         } catch (err) {
-            console.error("Erro ao chamar Estrategista:", err);
-            showError('errorCallingBot', `Erro ao chamar Estrategista: ${err.message}`, { role: 'estrategista' });
+            console.error("Erro na Etapa 3 (Estratégico):", err);
+            showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Estratégico: ${err.message}`), { role: 'estrategico' });
             hasError = true;
-            strategicResponse = "Erro ao obter estratégia jurídica.";
-            addToHistoryAndLog('estrategista', strategicResponse);
+            strategicResponse = t('errorFetchingStrategicAnalysis', 'Erro ao obter análise estratégica.');
+            addToHistoryAndLog('estrategico', strategicResponse);
+            renderLogs();
+            throw err;
         }
 
         console.log("Etapa 4: Chamando Redator para relatório final...");
-        addToHistoryAndLog('supervisor', t("supervisorRequestingFinalReport"));
-        const finalReportInput = `Gere um relatório final consolidado com base nas seguintes informações:\n\nDescrição Original:\n${initialInput}\n\nRelatório Técnico:\n${technicalReport}\n\nAvaliação Médica:\n${medicalResponse || 'Nenhuma realizada'}\n\nEstratégia Jurídica Sugerida:\n${strategicResponse}`;
+        const finalReportRequestMsg = t("supervisorRequestingFinalReport");
+        addToHistoryAndLog('supervisor', finalReportRequestMsg);
+        renderLogs();
         try {
-            finalReport = await callBotAPI("redator", finalReportInput, currentSessionId, user_id);
-            addToHistoryAndLog('redator', `RELATÓRIO FINAL CONSOLIDADO:\n${finalReport}`);
-            console.log("Redator (relatório final) respondeu com sucesso:", finalReport.substring(0, 50) + "...");
+            const finalReportPrompt = `${technicalReport}\n\n${medicalResponse}\n\n${strategicResponse}\n\nCom base nas análises acima, redija um relatório final consolidado.`;
+            finalReport = await callBotAPI("redator", finalReportPrompt, currentSessionId, user_id);
+            addToHistoryAndLog('redator', finalReport);
+            renderLogs();
         } catch (err) {
-            console.error("Erro ao chamar Redator (relatório final):", err);
-            showError('errorCallingBot', `Erro ao chamar Redator (relatório final): ${err.message}`, { role: 'redator' });
+            console.error("Erro na Etapa 4 (Redator - Relatório Final):", err);
+            showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Redator para relatório final: ${err.message}`), { role: 'redator' });
             hasError = true;
-            finalReport = "Erro ao obter relatório final.";
-            addToHistoryAndLog('redator', `RELATÓRIO FINAL CONSOLIDADO:\n${finalReport}`);
+            finalReport = t('errorFetchingFinalReport', 'Erro ao obter relatório final.');
+            addToHistoryAndLog('redator', finalReport);
+            renderLogs();
+            throw err;
         }
 
-        console.log("Etapa 5: Chamando Supervisor...");
-        addToHistoryAndLog('supervisor', t("supervisorConsolidating", "Consolidando análise para resposta final..."));
-        const supervisorInput = `CONTEXTO COMPLETO:\n${AppState.historicoConversa}\n\n---\nCom base em TODO o histórico acima (incluindo o relatório final consolidado do redator), forneça uma resposta final concisa e clara para o usuário, resumindo a análise e indicando os próximos passos ou a conclusão estratégica. Se precisar de mais informações, peça de forma explícita usando a frase '[PEDIDO_INFO]'.`;
+        console.log("Etapa 5: Chamando Supervisor para resposta final...");
+        const supervisorRequestMsg = t("supervisorProvidingFinalResponse");
+        addToHistoryAndLog('supervisor', supervisorRequestMsg);
+        renderLogs();
         try {
-            finalSupervisorResponse = await callBotAPI("supervisor", supervisorInput, currentSessionId, user_id);
+            const supervisorPrompt = `${AppState.historicoConversa}\n\nCom base em todo o histórico acima, forneça uma resposta final consolidada para o caso. Use '[PEDIDO_INFO]' se precisar de mais informações do usuário.`;
+            finalSupervisorResponse = await callBotAPI("supervisor", supervisorPrompt, currentSessionId, user_id);
             AppState.ultimaMensagemSupervisor = finalSupervisorResponse;
             addToHistoryAndLog('supervisor', finalSupervisorResponse);
-            console.log("Supervisor respondeu com sucesso:", finalSupervisorResponse.substring(0, 50) + "...");
-        } catch (err) {
-            console.error("Erro ao chamar Supervisor:", err);
-            showError('errorCallingBot', `Erro ao chamar Supervisor: ${err.message}`, { role: 'supervisor' });
-            hasError = true;
-            finalSupervisorResponse = "Erro ao obter resposta final do Supervisor.";
-            addToHistoryAndLog('supervisor', finalSupervisorResponse);
-        }
+            renderLogs();
 
-        showFinalResponse(finalSupervisorResponse);
-        updateElementVisibility(DOM.downloadPdfBtn, true);
-        checkIfSupervisorNeedsInput(finalSupervisorResponse);
+            showFinalResponse(finalSupervisorResponse);
+            updateElementVisibility(DOM.downloadPdfBtn, true);
+            checkIfSupervisorNeedsInput(finalSupervisorResponse);
+        } catch (err) {
+            console.error("Erro na Etapa 5 (Supervisor):", err);
+            showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Supervisor: ${err.message}`), { role: 'supervisor' });
+            hasError = true;
+            finalSupervisorResponse = t('errorFetchingSupervisorResponse', 'Erro ao obter resposta final do supervisor.');
+            addToHistoryAndLog('supervisor', finalSupervisorResponse);
+            renderLogs();
+            throw err;
+        }
     } catch (err) {
         console.error("Erro inesperado no fluxo principal:", err);
         if (!hasError) {
@@ -433,12 +374,12 @@ async function handleSupervisorResponse() {
 }
 
 function setupEventListeners() {
+    const t = i18nInstance.t.bind(i18nInstance);
     DOM.themeToggle?.addEventListener('click', toggleTheme);
     DOM.languageSelect?.addEventListener('change', (e) => changeLanguage(e.target.value));
 
     DOM.caseForm?.addEventListener('submit', (event) => {
         event.preventDefault();
-        const t = i18nInstance.t.bind(i18nInstance);
         const userInput = DOM.entradaUsuario?.value.trim();
         if (!userInput) {
             showError('errorCaseRequired', t('errorCaseRequired', 'Por favor, descreva o caso.'));
@@ -454,7 +395,6 @@ function setupEventListeners() {
 
     DOM.manualActionButtons?.forEach(button => {
         button.addEventListener('click', () => {
-            const t = i18nInstance.t.bind(i18nInstance);
             if (AppState.aguardandoRespostaUsuario) {
                 console.warn("Ação manual bloqueada: Aguardando resposta do usuário.");
                 showError("errorActionBlocked", t("errorActionBlocked", "Responda ao supervisor antes de continuar."));
@@ -487,3 +427,109 @@ function setupEventListeners() {
 
     console.log("Event listeners configurados.");
 }
+
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log("Aplicação Égide Iniciando...");
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+        console.log("Nenhum token encontrado, redirecionando para login.");
+        window.location.href = 'login.html';
+        return;
+    }
+
+    try {
+        initializeDOM();
+        if (!DOM.logsIndividuais) {
+            console.error("Elemento #logsIndividuais não encontrado após initializeDOM.");
+        }
+
+        await initializeI18n();
+        updateContent(DOM);
+
+        initializeTheme();
+
+        setupEventListeners();
+
+        const t = i18nInstance.t.bind(i18nInstance);
+        const cameFrom = sessionStorage.getItem('cameFrom');
+        console.log(`Origem da navegação (cameFrom): ${cameFrom}`);
+        const backButton = document.getElementById('back-button');
+        if (backButton) {
+            if (cameFrom === 'client-sessions') {
+                const clientId = sessionStorage.getItem('cameFromClientId');
+                const clientName = sessionStorage.getItem('cameFromClientName');
+                if (clientId && clientName) {
+                    backButton.href = `client-sessions.html?clientId=${encodeURIComponent(clientId)}&clientName=${encodeURIComponent(clientName)}`;
+                    console.log(`Botão 'Voltar' configurado para: ${backButton.href}`);
+                } else {
+                    console.warn("clientId ou clientName não encontrados no sessionStorage. Voltando para clients.html.");
+                    backButton.href = 'clients.html';
+                    console.log(`Botão 'Voltar' configurado para: ${backButton.href}`);
+                }
+            } else {
+                backButton.href = 'index.html';
+                console.log(`Botão 'Voltar' configurado para: ${backButton.href}`);
+            }
+        } else {
+            console.warn("Botão 'Voltar' (#back-button) não encontrado no DOM.");
+        }
+
+        const selectedClientId = sessionStorage.getItem('selectedClientId');
+        const selectedClientName = sessionStorage.getItem('selectedClientName');
+        const selectedAttendanceDescription = sessionStorage.getItem('selectedAttendanceDescription');
+
+        // Exibir descrição do atendimento imediatamente
+        const caseDescriptionElement = document.getElementById('caseDescription');
+        if (caseDescriptionElement && selectedAttendanceDescription) {
+            console.log(`Exibindo descrição do atendimento: ${selectedAttendanceDescription.substring(0, 50)}...`);
+            caseDescriptionElement.textContent = selectedAttendanceDescription;
+            caseDescriptionElement.classList.remove('d-none');
+        } else {
+            console.warn('Elemento #caseDescription não encontrado ou descrição ausente.');
+            if (!caseDescriptionElement) {
+                console.warn('Verifique se o elemento com ID "caseDescription" existe em chat.html.');
+            }
+            if (!selectedAttendanceDescription) {
+                console.warn('Nenhuma descrição de atendimento encontrada no sessionStorage.');
+            }
+        }
+
+        if (selectedClientId) {
+            console.log(`Cliente selecionado encontrado: ${selectedClientName} (ID: ${selectedClientId}). Preparando para nova análise.`);
+            sessionStorage.removeItem('selectedClientId');
+            sessionStorage.removeItem('selectedClientName');
+            localStorage.removeItem(SESSION_ID_STORAGE_KEY);
+            AppState.currentSessionId = null;
+            AppState.filtroAtual = 'ALL';
+            resetCaseState();
+            resetUIForNewCase();
+            renderLogs();
+            AppState.pendingClientId = selectedClientId;
+            AppState.pendingClientName = selectedClientName;
+
+            if (selectedAttendanceDescription) {
+                console.log(`Descrição do atendimento encontrada: ${selectedAttendanceDescription.substring(0, 50)}...`);
+                sessionStorage.removeItem selectedAttendanceDescription');
+                mainCaseFlow(selectedAttendanceDescription);
+            } else if (DOM.entradaUsuario) {
+                DOM.entradaUsuario.value = '';
+                DOM.entradaUsuario.placeholder = t('startAnalysisPlaceholder', `Iniciando análise para o cliente: ${AppState.pendingClientName}.\n\nDescreva o caso ou a pergunta inicial:`);
+                DOM.entradaUsuario.focus();
+            }
+        }
+
+        const sessionId = localStorage.getItem(SESSION_ID_STORAGE_KEY);
+        if (sessionId && !selectedClientId) {
+            console.log(`Carregando histórico para sessionId: ${sessionId}`);
+            await loadSessionData(sessionId);
+        } else if (!selectedClientId) {
+            console.warn("Nenhum session_id ou cliente selecionado encontrado no localStorage.");
+            resetUIForNewCase();
+            renderLogs();
+        }
+    } catch (err) {
+        console.error("Erro ao inicializar aplicação:", err);
+        showError('errorAppInit', t('errorAppInit', 'Erro ao carregar a aplicação.'));
+    }
+});

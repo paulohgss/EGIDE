@@ -5,17 +5,16 @@ import { DEFAULT_LANGUAGE } from './config.js';
 // Chave para usar no localStorage
 export const SESSION_ID_STORAGE_KEY = 'egideCurrentSessionId';
 
-// Estado inicial da aplicação
 export let AppState = {
   currentLanguage: localStorage.getItem('language') || DEFAULT_LANGUAGE,
-  currentTheme: localStorage.getItem('theme') || 'light', // Assumindo que theme.js também usa localStorage
-  isLoading: false,
-  logs: [], // Array para armazenar logs individuais { bot: string, texto: string }
+  logs: [],
   filtroAtual: 'ALL',
-  historicoConversa: "", // Armazena todo o histórico como string para fácil envio
+  historicoConversa: "",
   ultimaMensagemSupervisor: "",
   aguardandoRespostaUsuario: false,
-  currentSessionId: null, // Inicializa como null
+  currentSessionId: null,
+  pendingClientId: null, // Restaurado
+  pendingClientName: null // Restaurado
 };
 
 /**

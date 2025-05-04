@@ -1,11 +1,10 @@
-// frontend/js/logs.js
 import { DOM } from './dom-elements.js';
 import { AppState } from './state.js';
 import { i18nInstance } from './i18n.js';
 import { getBotLogPrefix } from './i18n.js';
-import { updateElementVisibility, escapeHtml } from './ui.js'; // Adicionado escapeHtml
+import { updateElementVisibility, escapeHtml } from './ui.js';
 
-export function addToHistoryAndLog(actor, text) {
+export function addToHistoryAndLog(actor, text, isFinalResponse = false) {
     if (!text) return;
 
     const timestamp = new Date().toISOString();
@@ -14,7 +13,7 @@ export function addToHistoryAndLog(actor, text) {
     const logRoleName = actor === 'usuario'
         ? t('userLogPrefixSimple', 'Usuário')
         : actor.charAt(0).toUpperCase() + actor.slice(1);
-    AppState.logs.push({ bot: logRoleName, texto: text });
+    AppState.logs.push({ bot: logRoleName, texto: text, isFinalResponse });
 
     const historyPrefix = actor === 'usuario'
         ? t('userLogPrefix', 'Usuário')
@@ -24,7 +23,6 @@ export function addToHistoryAndLog(actor, text) {
     renderLogs();
 }
 
-// frontend/js/logs.js
 export function renderLogs() {
     if (!DOM.logsIndividuais) {
         console.error("[renderLogs] Elemento #logsIndividuais não encontrado no DOM. Verifique se initializeDOM foi chamado após DOMContentLoaded.");
@@ -44,31 +42,38 @@ export function renderLogs() {
     DOM.logsIndividuais.innerHTML = '';
     if (filteredLogs.length > 0) {
         filteredLogs.forEach((log, index) => {
+            const isUser = log.bot === userLogName;
+            const isFinal = log.isFinalResponse || false;
             const logElement = document.createElement('div');
-            logElement.className = `log-entry mb-2 log-${log.bot.toLowerCase()} border rounded p-3 bg-light`;
+            logElement.className = `chat-message mb-3 d-flex ${isUser ? 'justify-content-end' : 'justify-content-start'} animate__animated animate__fadeInUp animate__faster`;
             
-            // Formatar o texto para melhor legibilidade
             let formattedText = escapeHtml(log.texto)
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Negrito para **texto**
-                .replace(/\n/g, '<br>'); // Quebras de linha
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
 
-            // Adicionar um título para cada log
             logElement.innerHTML = `
-                <div class="d-flex align-items-center mb-2">
-                    <strong class="me-2">${getBotLogPrefix(log.bot)}:</strong>
-                    <span class="text-muted small">Log ${index + 1}</span>
+                <div class="d-flex align-items-end ${isUser ? 'flex-row-reverse' : ''}">
+                    <div class="chat-avatar ${isUser ? 'ms-2' : 'me-2'}">
+                        <i class="fas ${isUser ? 'fa-user' : 'fa-robot'}"></i>
+                    </div>
+                    <div class="chat-bubble ${isUser ? 'bg-primary text-white' : 'bg-light border'} ${isFinal ? 'final-response' : ''} rounded p-3">
+                        <div class="d-flex align-items-center mb-1">
+                            <strong class="me-2">${getBotLogPrefix(log.bot)}</strong>
+                            <span class="text-muted small">${new Date().toLocaleTimeString()}</span>
+                        </div>
+                        <div class="chat-content">${formattedText}</div>
+                    </div>
                 </div>
-                <div class="log-content" style="white-space: pre-wrap; font-family: monospace;">${formattedText}</div>
             `;
             DOM.logsIndividuais.appendChild(logElement);
             console.log(`[renderLogs] Adicionado log ${index + 1}:`, logElement.outerHTML);
         });
         DOM.logsIndividuais.style.display = 'block';
         updateElementVisibility(DOM.logsIndividuais, true);
+        DOM.logsIndividuais.scrollTop = DOM.logsIndividuais.scrollHeight; // Rolar para o final
         console.log("[renderLogs] Logs renderizados com sucesso em #logsIndividuais, conteúdo:", DOM.logsIndividuais.innerHTML);
-        console.log("[renderLogs] Classe de #logsIndividuais:", DOM.logsIndividuais.className);
     } else {
-        DOM.logsIndividuais.innerHTML = `<div class="alert alert-info">${t('noConversation', 'Nenhuma conversa disponível.')}</div>`;
+        DOM.logsIndividuais.innerHTML = `<div class="alert alert-info text-center">${t('noConversation', 'Nenhuma conversa disponível.')}</div>`;
         updateElementVisibility(DOM.logsIndividuais, true);
         console.log("[renderLogs] Nenhum log para exibir após filtro.");
     }
@@ -109,6 +114,11 @@ export function formatBackendHistoryToString(backendHistory) {
         let content = entry.content || '';
         if (entry.type === 'user_message_to_bot') {
             prefix = t('userLogPrefix', 'Usuário');
+            if (entry.purpose || entry.purpose_detail) {
+                content += '\n';
+                if (entry.purpose) content += `Propósito: ${entry.purpose}\n`;
+                if (entry.purpose_detail) content += `Detalhes do Propósito: ${entry.purpose_detail}`;
+            }
         } else if (entry.type === 'bot_response') {
             prefix = getBotLogPrefix(entry.role);
         } else {
@@ -119,27 +129,31 @@ export function formatBackendHistoryToString(backendHistory) {
     }).filter(Boolean).join('\n\n');
 }
 
-// frontend/js/logs.js
 export function formatBackendHistoryToLogs(backendHistory) {
     if (!Array.isArray(backendHistory)) return [];
-    const logs = [];
     const t = i18nInstance.t.bind(i18nInstance);
     const userLogName = t('userLogPrefixSimple', 'Usuário');
+    const logs = [];
 
     backendHistory.forEach(entry => {
         let logBotName = '';
         let logText = entry.content || '';
+        let isFinalResponse = false;
 
         if (entry.type === 'user_message_to_bot') {
-            // Apenas incluir a primeira mensagem do usuário (não mensagens internas)
-            if (logs.length === 0) {
-                logBotName = userLogName;
-                logs.push({ bot: logBotName, texto: logText });
+            logBotName = userLogName;
+            if (entry.purpose || entry.purpose_detail) {
+                logText += '\n';
+                if (entry.purpose) logText += `Propósito: ${entry.purpose}\n`;
+                if (entry.purpose_detail) logText += `Detalhes do Propósito: ${entry.purpose_detail}`;
             }
+            logs.push({ bot: logBotName, texto: logText, isFinalResponse });
         } else if (entry.type === 'bot_response' && entry.role) {
             logBotName = entry.role.charAt(0).toUpperCase() + entry.role.slice(1);
-            logs.push({ bot: logBotName, texto: logText });
+            isFinalResponse = entry.role === 'supervisor' && !logText.includes('[PEDIDO_INFO]');
+            logs.push({ bot: logBotName, texto: logText, isFinalResponse });
         }
     });
+
     return logs;
 }

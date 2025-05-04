@@ -4,6 +4,11 @@ const { authenticateToken } = require('../middlewares/auth');
 
 const router = express.Router();
 
+const stmt = db.prepare(`
+    INSERT INTO attendances (id, client_id, user_id, description, purpose, purpose_detail, created_at, last_updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+`);
+
 // POST /api/attendances (cadastrar atendimento)
 router.post('/attendances', authenticateToken, (req, res) => {
     const user = req.user;
@@ -17,8 +22,8 @@ router.post('/attendances', authenticateToken, (req, res) => {
     }
     console.log(`Usuário ${user.username} (ID: ${user.user_id}, Role: ${user.role}) tentando cadastrar atendimento.`);
 
-    const { client_id, description } = req.body;
-    console.log("Dados recebidos:", { client_id, description });
+    const { client_id, description, purpose, purpose_detail } = req.body;
+    console.log("Dados recebidos:", { client_id, description, purpose, purpose_detail });
 
     if (!client_id || typeof client_id !== 'string' || client_id.trim() === '') {
         console.log("Validação falhou: client_id é obrigatório.");
@@ -27,6 +32,14 @@ router.post('/attendances', authenticateToken, (req, res) => {
     if (!description || typeof description !== 'string' || description.trim() === '') {
         console.log("Validação falhou: Descrição do atendimento é obrigatória.");
         return res.status(400).json({ error: 'Descrição do atendimento é obrigatória.' });
+    }
+    if (!purpose || typeof purpose !== 'string' || purpose.trim() === '') {
+        console.log("Validação falhou: Propósito do atendimento é obrigatório.");
+        return res.status(400).json({ error: 'Propósito do atendimento é obrigatório.' });
+    }
+    if (purpose === 'Outro' && (!purpose_detail || typeof purpose_detail !== 'string' || purpose_detail.trim() === '')) {
+        console.log("Validação falhou: Detalhes do propósito são obrigatórios para propósito 'Outro'.");
+        return res.status(400).json({ error: 'Detalhes do propósito são obrigatórios para propósito "Outro".' });
     }
 
     try {
@@ -38,11 +51,7 @@ router.post('/attendances', authenticateToken, (req, res) => {
 
         console.log(`Tentando cadastrar atendimento para cliente ID: ${client_id}`);
         const attendanceId = `attendance_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const stmt = db.prepare(`
-            INSERT INTO attendances (id, client_id, user_id, description, created_at, last_updated_at)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `);
-        stmt.run(attendanceId, client_id, user.user_id, description.trim());
+        stmt.run(attendanceId, client_id, user.user_id, description.trim(), purpose.trim(), purpose_detail?.trim() || null);
         console.log(`Atendimento cadastrado: ${attendanceId} para cliente ID: ${client_id}`);
         res.status(201).json({
             success: true,
@@ -52,6 +61,8 @@ router.post('/attendances', authenticateToken, (req, res) => {
                 client_id: client_id,
                 user_id: user.user_id,
                 description: description.trim(),
+                purpose: purpose.trim(),
+                purpose_detail: purpose_detail?.trim() || null,
                 created_at: new Date().toISOString(),
                 last_updated_at: new Date().toISOString()
             }
@@ -86,7 +97,7 @@ router.get('/clients/:clientId/attendances', authenticateToken, (req, res) => {
         }
 
         const attendances = db.prepare(`
-            SELECT id AS attendance_id, client_id, user_id, description, created_at, last_updated_at
+            SELECT id AS attendance_id, client_id, user_id, description, purpose, purpose_detail, created_at, last_updated_at
             FROM attendances
             WHERE client_id = ?
             ORDER BY last_updated_at DESC
@@ -163,7 +174,7 @@ router.get('/attendances/:attendanceId', authenticateToken, (req, res) => {
 
     try {
         const attendance = db.prepare(`
-            SELECT a.id AS attendance_id, a.client_id, a.user_id, a.description, a.created_at, a.last_updated_at
+            SELECT a.id AS attendance_id, a.client_id, a.user_id, a.description, a.purpose, a.purpose_detail, a.created_at, a.last_updated_at
             FROM attendances a
             JOIN clients c ON a.client_id = c.client_id
             WHERE a.id = ? AND c.user_id = ?

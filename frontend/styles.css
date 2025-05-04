@@ -3,6 +3,7 @@ body {
   transition: background-color 0.3s, color 0.3s;
   background-color: #f8f9fa;
   color: #212529;
+  margin: 0;
 }
 
 /* --- Tema Escuro --- */
@@ -216,4 +217,164 @@ details pre {
   border: none;
   font-size: 1rem;
   cursor: pointer;
+}
+
+/* Garantir que o wrapper do chat ocupe toda a altura da tela */
+.chat-wrapper {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background-color: #f5f7fa;
+}
+
+/* Centralizar e dimensionar o contêiner principal */
+.chat-main {
+  max-width: 800px;
+  margin: 0 auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Estilizar o contêiner de mensagens */
+.chat-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background-color: transparent;
+  -ms-overflow-style: none; /* Internet Explorer e Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Remover completamente a barra de rolagem */
+.chat-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Estilizar mensagens */
+.chat-message {
+  margin-bottom: 15px;
+}
+
+/* Estilizar avatares */
+.chat-avatar {
+  font-size: 20px;
+  color: #6c757d;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dark-theme .chat-avatar {
+  color: #adb5bd;
+}
+
+/* Estilizar balões de conversa */
+.chat-bubble {
+  padding: 12px 16px;
+  border-radius: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  max-width: 70%;
+}
+
+.chat-bubble.bg-primary {
+  background-color: #007bff;
+  color: white;
+}
+
+.chat-bubble.bg-light {
+  background-color: #ffffff;
+  border: 1px solid #e1e4e8;
+}
+
+/* Estilo especial para a Resposta Final */
+.chat-bubble.final-response {
+  background-color: #e7f3ff;
+  border: 2px solid #007bff;
+  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.1);
+}
+
+/* Conteúdo do balão */
+.chat-content {
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* Estilizar o contêiner de entrada */
+.chat-input-container {
+  background-color: #ffffff;
+  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.05);
+  border-radius: 20px;
+  margin: 10px 20px;
+  padding: 10px !important;
+}
+
+/* Estilizar o campo de entrada */
+#entradaUsuario {
+  resize: none;
+  overflow-y: auto;
+  max-height: 100px;
+  border-radius: 20px;
+  padding: 10px 15px;
+  font-size: 14px;
+  border: 1px solid #ced4da;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+#entradaUsuario:focus {
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+  border-color: #007bff;
+}
+
+.border-warning {
+  border: 1px solid #ffc107 !important;
+  box-shadow: 0 0 5px rgba(255, 193, 7, 0.3);
+}
+
+/* Estilizar o botão de envio */
+#submitButton {
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilizar os botões de ação */
+.chat-actions {
+  background-color: #ffffff;
+  margin: 0 20px;
+  padding: 10px 0 !important;
+}
+
+/* Ajustar o caseDescription e error-message */
+#caseDescription, #error-message {
+  margin: 10px 20px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+
+.chat-info {
+  background-color: #e9ecef;
+  border-radius: 10px;
+  padding: 10px 15px;
+  margin: 10px 20px;
+  font-size: 14px;
+  color: #495057;
+}
+
+/* Ajustar o cabeçalho */
+header {
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 10px 20px !important;
 }

@@ -1,12 +1,15 @@
 import * as Config from './config.js';
 import { AppState, resetCaseState, SESSION_ID_STORAGE_KEY } from './state.js';
 import { DOM, initializeDOM } from './dom-elements.js';
-import { showError, toggleSpinner, updateElementVisibility, resetUIForNewCase, showFinalResponse, clearProgress, showProgress } from './ui.js';
+import { showError, showProgress, toggleSpinner, updateElementVisibility, resetUIForNewCase, clearProgress } from './ui.js';
 import { initializeTheme, toggleTheme } from './theme.js';
-import { initializeI18n, updateContent, getBotLogPrefix, i18nInstance } from './i18n.js';
+import { initializeI18n, updateContent, getBotLogPrefix, i18nInstance, getT } from './i18n.js';
 import { callBotAPI, getSessionHistory } from './api.js';
 import { addToHistoryAndLog, renderLogs, handleClearLogs, exportLogs, formatBackendHistoryToLogs, formatBackendHistoryToString } from './logs.js';
 import { downloadConversationAsPdf } from './pdf.js';
+
+// Função de fallback para tradução, caso i18nInstance não esteja pronta
+const fallbackT = (key, fallback) => fallback;
 
 async function loadSessionData(sessionId) {
     if (!sessionId) {
@@ -15,7 +18,7 @@ async function loadSessionData(sessionId) {
     }
 
     console.log(`[loadSessionData] Tentando carregar dados para a sessão: ${sessionId}`);
-    const t = i18nInstance.t.bind(i18nInstance);
+    const t = i18nInstance && i18nInstance.t ? i18nInstance.t.bind(i18nInstance) : fallbackT;
     showProgress('infoLoadingHistory', t('loadingHistory', 'Carregando histórico...'));
     toggleSpinner(true);
     try {
@@ -29,7 +32,7 @@ async function loadSessionData(sessionId) {
             console.log(`[loadSessionData] Histórico contém ${backendHistory.length} entradas.`);
 
             AppState.historicoConversa = formatBackendHistoryToString(backendHistory);
-            console.log(`[loadSessionData] AppState.historicoConversa preenchido:`, AppState.historicoConversa.substring(0, 100 100) + "...");
+            console.log(`[loadSessionData] AppState.historicoConversa preenchido:`, AppState.historicoConversa.substring(0, 100) + "...");
 
             AppState.logs = formatBackendHistoryToLogs(backendHistory);
             console.log(`[loadSessionData] AppState.logs preenchido com ${AppState.logs.length} entradas:`, JSON.stringify(AppState.logs, null, 2));
@@ -54,14 +57,6 @@ async function loadSessionData(sessionId) {
                         visibility: window.getComputedStyle(DOM.logsIndividuais).visibility,
                         opacity: window.getComputedStyle(DOM.logsIndividuais).opacity
                     });
-                    const logEntries = DOM.logsIndividuais.querySelectorAll('.log-entry');
-                    logEntries.forEach((entry, index) => {
-                        console.log(`[loadSessionData] Estilos computados do log-entry ${index + 1}:`, {
-                            display: window.getComputedStyle(entry).display,
-                            visibility: window.getComputedStyle(entry).visibility,
-                            opacity: window.getComputedStyle(entry).opacity
-                        });
-                    });
                 });
                 console.log("[loadSessionData] #logsIndividuais visível, conteúdo:", DOM.logsIndividuais.innerHTML);
             } else {
@@ -75,14 +70,11 @@ async function loadSessionData(sessionId) {
 
             if (lastSupervisorEntry?.content) {
                 AppState.ultimaMensagemSupervisor = lastSupervisorEntry.content;
-                console.log(`[loadSessionData] Exibindo resposta final do supervisor:`, AppState.ultimaMensagemSupervisor.substring(0, 50) + "...");
-                showFinalResponse(AppState.ultimaMensagemSupervisor);
+                console.log(`[loadSessionData] Última mensagem do supervisor:`, AppState.ultimaMensagemSupervisor.substring(0, 50) + "...");
                 updateElementVisibility(DOM.downloadPdfBtn, true);
                 checkIfSupervisorNeedsInput(AppState.ultimaMensagemSupervisor);
             } else {
                 console.log(`[loadSessionData] Nenhuma resposta do supervisor encontrada.`);
-                if (DOM.respostaFinal) DOM.respostaFinal.textContent = '';
-                updateElementVisibility(DOM.respostaFinal, false);
                 updateElementVisibility(DOM.downloadPdfBtn, false);
             }
             console.log(`[loadSessionData] Sessão ${sessionId} restaurada com histórico completo.`);
@@ -118,47 +110,52 @@ function handleLogout() {
     window.location.href = 'login.html';
 }
 
-function containsKeywords(text, keywords) {
-    if (!text) return false;
-    const lowerText = text.toLowerCase();
-    return keywords.some(keyword => lowerText.includes(keyword.toLowerCase()));
-}
-
 function checkIfSupervisorNeedsInput(supervisorText) {
-    const t = i18nInstance.t.bind(i18nInstance);
+    const t = i18nInstance && i18nInstance.t ? i18nInstance.t.bind(i18nInstance) : fallbackT;
     if (!supervisorText) {
         AppState.aguardandoRespostaUsuario = false;
-        updateElementVisibility(DOM.respostaUsuarioBox, false);
+        if (DOM.entradaUsuario) {
+            DOM.entradaUsuario.placeholder = t('startAnalysisPlaceholder', 'Digite o caso ou a pergunta inicial...');
+            DOM.entradaUsuario.classList.remove('border-warning');
+        }
         return;
     }
     const needsInput = Config.REGEX_PEDIDO_INFO.test(supervisorText);
     AppState.aguardandoRespostaUsuario = needsInput;
-    updateElementVisibility(DOM.respostaUsuarioBox, needsInput);
-
-    if (needsInput) {
-        if (DOM.respostaUsuarioInput) {
-            DOM.respostaUsuarioInput.focus();
-            DOM.respostaUsuarioInput.placeholder = t('supervisorResponsePlaceholder', 'Digite a informação solicitada aqui...');
-        }
+    if (DOM.entradaUsuario) {
+        DOM.entradaUsuario.placeholder = needsInput 
+            ? t('supervisorResponsePlaceholder', 'Digite a informação solicitada aqui...')
+            : t('startAnalysisPlaceholder', 'Digite o caso ou a pergunta inicial...');
+        DOM.entradaUsuario.classList.toggle('border-warning', needsInput);
+        DOM.entradaUsuario.focus();
     }
 }
 
 async function mainCaseFlow(initialInput) {
-    const t = i18nInstance.t.bind(i18nInstance);
+    const t = i18nInstance && i18nInstance.t ? i18nInstance.t.bind(i18nInstance) : fallbackT;
     const user_id = localStorage.getItem('user_id');
 
     let currentSessionId = AppState.currentSessionId;
     const isNewSessionFlow = !currentSessionId;
 
-    const clientIdToLink = AppState.pendingClientId; // client_1746308221062_6csvs
+    const clientIdToLink = AppState.pendingClientId;
     const clientNameContext = AppState.pendingClientName;
-    const attendanceId = sessionStorage.getItem('selectedAttendanceId'); // attendance_1746313026885_5d4no
+    const attendanceId = sessionStorage.getItem('selectedAttendanceId');
     AppState.pendingClientId = null;
     AppState.pendingClientName = null;
     sessionStorage.removeItem('selectedAttendanceId');
 
-    console.log('Chamando callBotAPI para redator:', {
-        initialInput,
+    // Recuperar purpose e purpose_detail do sessionStorage
+    const purpose = sessionStorage.getItem('selectedPurpose') || 'Não especificado';
+    const purposeDetail = sessionStorage.getItem('selectedPurposeDetail') || '';
+
+    console.log('Valores recuperados do sessionStorage:', { purpose, purposeDetail });
+
+    // Criar um prompt completo com todos os dados
+    const fullInitialInput = `${initialInput}\n\nPropósito: ${purpose}\nDetalhes do Propósito: ${purposeDetail}`;
+
+    console.log('Chamando callBotAPI:', {
+        fullInitialInput,
         user_id,
         clientIdToLink,
         attendanceId
@@ -166,9 +163,9 @@ async function mainCaseFlow(initialInput) {
 
     toggleSpinner(true);
 
-    let logInitialInput = initialInput;
+    let logInitialInput = fullInitialInput;
     if (isNewSessionFlow && clientNameContext) {
-        logInitialInput = `(${t('client', 'Cliente')}: ${clientNameContext}) ${initialInput}`;
+        logInitialInput = `(${t('client', 'Cliente')}: ${clientNameContext}) ${fullInitialInput}`;
     }
     addToHistoryAndLog('usuario', logInitialInput);
 
@@ -180,103 +177,130 @@ async function mainCaseFlow(initialInput) {
     let hasError = false;
 
     try {
-        console.log("Etapa 1: Chamando Redator para relatório técnico inicial...");
-        const redactorRequestMsg = t("supervisorRequestingRedactor");
-        addToHistoryAndLog('supervisor', redactorRequestMsg);
-        renderLogs();
-        technicalReport = await callBotAPI(
-            "redator",
-            initialInput,
-            null,
-            clientIdToLink,
-            attendanceId
-        );
-        currentSessionId = AppState.currentSessionId;
-        if (!currentSessionId) {
-            throw new Error(t('sessionIdNotSet', "Falha ao obter/definir o ID da sessão após a primeira chamada API."));
-        }
-        addToHistoryAndLog('redator', technicalReport);
-        renderLogs();
-
-        console.log("Etapa 2: Chamando Médico para análise médica...");
-        const medicalRequestMsg = t("supervisorRequestingMedical");
-        addToHistoryAndLog('supervisor', medicalRequestMsg);
-        renderLogs();
-        try {
-            const medicalPrompt = `${technicalReport}\n\nCom base no relatório técnico acima, forneça uma análise médica detalhada.`;
-            medicalResponse = await callBotAPI("medico", medicalPrompt, currentSessionId, user_id);
-            addToHistoryAndLog('medico', medicalResponse);
-            renderLogs();
-        } catch (err) {
-            console.error("Erro na Etapa 2 (Médico):", err);
-            showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Médico: ${err.message}`), { role: 'medico' });
-            hasError = true;
-            medicalResponse = t('errorFetchingMedicalAnalysis', 'Erro ao obter análise médica.');
-            addToHistoryAndLog('medico', medicalResponse);
-            renderLogs();
-            throw err;
-        }
-
-        console.log("Etapa 3: Chamando Estratégico para análise estratégica...");
-        const strategicRequestMsg = t("supervisorRequestingStrategic");
-        addToHistoryAndLog('supervisor', strategicRequestMsg);
-        renderLogs();
-        try {
-            const strategicPrompt = `${technicalReport}\n\n${medicalResponse}\n\nCom base no relatório técnico e na análise médica acima, forneça uma análise estratégica para o caso.`;
-            strategicResponse = await callBotAPI("estrategico", strategicPrompt, currentSessionId, user_id);
-            addToHistoryAndLog('estrategico', strategicResponse);
-            renderLogs();
-        } catch (err) {
-            console.error("Erro na Etapa 3 (Estratégico):", err);
-            showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Estratégico: ${err.message}`), { role: 'estrategico' });
-            hasError = true;
-            strategicResponse = t('errorFetchingStrategicAnalysis', 'Erro ao obter análise estratégica.');
-            addToHistoryAndLog('estrategico', strategicResponse);
-            renderLogs();
-            throw err;
-        }
-
-        console.log("Etapa 4: Chamando Redator para relatório final...");
-        const finalReportRequestMsg = t("supervisorRequestingFinalReport");
-        addToHistoryAndLog('supervisor', finalReportRequestMsg);
-        renderLogs();
-        try {
-            const finalReportPrompt = `${technicalReport}\n\n${medicalResponse}\n\n${strategicResponse}\n\nCom base nas análises acima, redija um relatório final consolidado.`;
-            finalReport = await callBotAPI("redator", finalReportPrompt, currentSessionId, user_id);
-            addToHistoryAndLog('redator', finalReport);
-            renderLogs();
-        } catch (err) {
-            console.error("Erro na Etapa 4 (Redator - Relatório Final):", err);
-            showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Redator para relatório final: ${err.message}`), { role: 'redator' });
-            hasError = true;
-            finalReport = t('errorFetchingFinalReport', 'Erro ao obter relatório final.');
-            addToHistoryAndLog('redator', finalReport);
-            renderLogs();
-            throw err;
-        }
-
-        console.log("Etapa 5: Chamando Supervisor para resposta final...");
-        const supervisorRequestMsg = t("supervisorProvidingFinalResponse");
-        addToHistoryAndLog('supervisor', supervisorRequestMsg);
-        renderLogs();
-        try {
-            const supervisorPrompt = `${AppState.historicoConversa}\n\nCom base em todo o histórico acima, forneça uma resposta final consolidada para o caso. Use '[PEDIDO_INFO]' se precisar de mais informações do usuário.`;
+        // Verificar se é uma resposta ao Supervisor ou continuação
+        if (AppState.aguardandoRespostaUsuario && !isNewSessionFlow) {
+            console.log("Processando resposta ao Supervisor...");
+            const supervisorPrompt = `${AppState.historicoConversa}\n\nUsuário: ${fullInitialInput}\n\nSupervisor, por favor, considere a última resposta do usuário e continue a análise ou forneça uma resposta final. Se precisar de mais informações, use '[PEDIDO_INFO]'`;
             finalSupervisorResponse = await callBotAPI("supervisor", supervisorPrompt, currentSessionId, user_id);
             AppState.ultimaMensagemSupervisor = finalSupervisorResponse;
-            addToHistoryAndLog('supervisor', finalSupervisorResponse);
+            const isFinalResponse = !finalSupervisorResponse.includes('[PEDIDO_INFO]');
+            addToHistoryAndLog('supervisor', finalSupervisorResponse, isFinalResponse);
             renderLogs();
-
-            showFinalResponse(finalSupervisorResponse);
             updateElementVisibility(DOM.downloadPdfBtn, true);
             checkIfSupervisorNeedsInput(finalSupervisorResponse);
-        } catch (err) {
-            console.error("Erro na Etapa 5 (Supervisor):", err);
-            showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Supervisor: ${err.message}`), { role: 'supervisor' });
-            hasError = true;
-            finalSupervisorResponse = t('errorFetchingSupervisorResponse', 'Erro ao obter resposta final do supervisor.');
-            addToHistoryAndLog('supervisor', finalSupervisorResponse);
+            if (DOM.entradaUsuario) DOM.entradaUsuario.value = '';
+        } else if (!isNewSessionFlow && AppState.ultimaMensagemSupervisor) {
+            console.log("Continuando conversa existente...");
+            const supervisorPrompt = `${AppState.historicoConversa}\n\nUsuário: ${fullInitialInput}\n\nSupervisor, por favor, considere a última resposta do usuário e continue a análise ou forneça uma resposta final. Se precisar de mais informações, use '[PEDIDO_INFO]'`;
+            finalSupervisorResponse = await callBotAPI("supervisor", supervisorPrompt, currentSessionId, user_id);
+            AppState.ultimaMensagemSupervisor = finalSupervisorResponse;
+            const isFinalResponse = !finalSupervisorResponse.includes('[PEDIDO_INFO]');
+            addToHistoryAndLog('supervisor', finalSupervisorResponse, isFinalResponse);
             renderLogs();
-            throw err;
+            updateElementVisibility(DOM.downloadPdfBtn, true);
+            checkIfSupervisorNeedsInput(finalSupervisorResponse);
+            if (DOM.entradaUsuario) DOM.entradaUsuario.value = '';
+        } else {
+            // Fluxo completo para nova sessão
+            console.log("Etapa 1: Chamando Redator para relatório técnico inicial...");
+            const redactorRequestMsg = t("supervisorRequestingRedactor");
+            addToHistoryAndLog('supervisor', redactorRequestMsg);
+            renderLogs();
+            technicalReport = await callBotAPI(
+                "redator",
+                fullInitialInput,
+                null,
+                user_id,
+                clientIdToLink,
+                attendanceId
+            );
+            currentSessionId = AppState.currentSessionId;
+            if (!currentSessionId) {
+                throw new Error(t('sessionIdNotSet', "Falha ao obter/definir o ID da sessão após a primeira chamada API."));
+            }
+            addToHistoryAndLog('redator', technicalReport);
+            renderLogs();
+
+            console.log("Etapa 2: Chamando Médico para análise médica...");
+            const medicalRequestMsg = t("supervisorRequestingMedical");
+            addToHistoryAndLog('supervisor', medicalRequestMsg);
+            renderLogs();
+            try {
+                const medicalPrompt = `${technicalReport}\n\nCom base no relatório técnico acima, forneça uma análise médica detalhada.`;
+                medicalResponse = await callBotAPI("medico", medicalPrompt, currentSessionId, user_id);
+                addToHistoryAndLog('medico', medicalResponse);
+                renderLogs();
+            } catch (err) {
+                console.error("Erro na Etapa 2 (Médico):", err);
+                showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Médico: ${err.message}`), { role: 'medico' });
+                hasError = true;
+                medicalResponse = t('errorFetchingMedicalAnalysis', 'Erro ao obter análise médica.');
+                addToHistoryAndLog('medico', medicalResponse);
+                renderLogs();
+                throw err;
+            }
+
+            console.log("Etapa 3: Chamando Estratégico para análise estratégica...");
+            const strategicRequestMsg = t("supervisorRequestingStrategic");
+            addToHistoryAndLog('supervisor', strategicRequestMsg);
+            renderLogs();
+            try {
+                const strategicPrompt = `${technicalReport}\n\n${medicalResponse}\n\nCom base no relatório técnico e na análise médica acima, forneça uma análise estratégica para o caso.`;
+                strategicResponse = await callBotAPI("estrategico", strategicPrompt, currentSessionId, user_id);
+                addToHistoryAndLog('estrategico', strategicResponse);
+                renderLogs();
+            } catch (err) {
+                console.error("Erro na Etapa 3 (Estratégico):", err);
+                showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Estratégico: ${err.message}`), { role: 'estrategico' });
+                hasError = true;
+                strategicResponse = t('errorFetchingStrategicAnalysis', 'Erro ao obter análise estratégica.');
+                addToHistoryAndLog('estrategico', strategicResponse);
+                renderLogs();
+                throw err;
+            }
+
+            console.log("Etapa 4: Chamando Redator para relatório final...");
+            const finalReportRequestMsg = t("supervisorRequestingFinalReport");
+            addToHistoryAndLog('supervisor', finalReportRequestMsg);
+            renderLogs();
+            try {
+                const finalReportPrompt = `${technicalReport}\n\n${medicalResponse}\n\n${strategicResponse}\n\nCom base nas análises acima, redija um relatório final consolidado.`;
+                finalReport = await callBotAPI("redator", finalReportPrompt, currentSessionId, user_id);
+                addToHistoryAndLog('redator', finalReport);
+                renderLogs();
+            } catch (err) {
+                console.error("Erro na Etapa 4 (Redator - Relatório Final):", err);
+                showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Redator para relatório final: ${err.message}`), { role: 'redator' });
+                hasError = true;
+                finalReport = t('errorFetchingFinalReport', 'Erro ao obter relatório final.');
+                addToHistoryAndLog('redator', finalReport);
+                renderLogs();
+                throw err;
+            }
+
+            console.log("Etapa 5: Chamando Supervisor para resposta final...");
+            const supervisorRequestMsg = t("supervisorProvidingFinalResponse");
+            addToHistoryAndLog('supervisor', supervisorRequestMsg);
+            renderLogs();
+            try {
+                const supervisorPrompt = `${AppState.historicoConversa}\n\nCom base em todo o histórico acima, forneça uma resposta final consolidada para o caso. Use '[PEDIDO_INFO]' se precisar de mais informações do usuário.`;
+                finalSupervisorResponse = await callBotAPI("supervisor", supervisorPrompt, currentSessionId, user_id);
+                AppState.ultimaMensagemSupervisor = finalSupervisorResponse;
+                const isFinalResponse = !finalSupervisorResponse.includes('[PEDIDO_INFO]');
+                addToHistoryAndLog('supervisor', finalSupervisorResponse, isFinalResponse);
+                renderLogs();
+                updateElementVisibility(DOM.downloadPdfBtn, true);
+                checkIfSupervisorNeedsInput(finalSupervisorResponse);
+                if (DOM.entradaUsuario) DOM.entradaUsuario.value = '';
+            } catch (err) {
+                console.error("Erro na Etapa 5 (Supervisor):", err);
+                showError('errorCallingBot', t('errorCallingBot', `Erro ao chamar Supervisor: ${err.message}`), { role: 'supervisor' });
+                hasError = true;
+                finalSupervisorResponse = t('errorFetchingSupervisorResponse', 'Erro ao obter resposta final do supervisor.');
+                addToHistoryAndLog('supervisor', finalSupervisorResponse);
+                renderLogs();
+                throw err;
+            }
         }
     } catch (err) {
         console.error("Erro inesperado no fluxo principal:", err);
@@ -288,132 +312,32 @@ async function mainCaseFlow(initialInput) {
     }
 }
 
-async function handleManualBotExecution(role) {
-    if (!role) {
-        console.error("Role não fornecido para execução manual.");
-        return;
-    }
-    const t = i18nInstance.t.bind(i18nInstance);
-    const user_id = localStorage.getItem('user_id') || null;
-    const currentSessionId = AppState.currentSessionId;
-
-    if (!currentSessionId) {
-        showError("errorSessionRequired", t("errorSessionRequired", "Inicie ou recarregue uma análise primeiro."));
-        return;
-    }
-    if (!AppState.historicoConversa) {
-        showError("errorHistoryRequired", t("errorHistoryRequired", "Execute uma análise primeiro para ter histórico."));
-        return;
-    }
-
-    toggleSpinner(true);
-    try {
-        console.log(`Execução manual: Chamando ${role}...`);
-        const response = await callBotAPI(role, AppState.historicoConversa, currentSessionId, user_id);
-        console.log(`Resposta de ${role} (manual):`, response.substring(0, 50) + "...");
-
-        const manualLogText = `(${t('manualLogSuffix', 'Manual')}) ${response}`;
-        addToHistoryAndLog(role, manualLogText);
-
-        if (role === 'supervisor') {
-            AppState.ultimaMensagemSupervisor = response;
-            showFinalResponse(response);
-            checkIfSupervisorNeedsInput(response);
-        }
-        updateElementVisibility(DOM.downloadPdfBtn, true);
-    } catch (err) {
-        console.error(`Erro na execução manual do ${role}:`, err);
-    } finally {
-        toggleSpinner(false);
-    }
-}
-
-async function handleSupervisorResponse() {
-    const t = i18nInstance.t.bind(i18nInstance);
-    const userInput = DOM.respostaUsuarioInput?.value.trim();
-    if (!userInput) {
-        showError("errorResponseRequired", t("errorResponseRequired", "Por favor, forneça a informação solicitada."));
-        return;
-    }
-
-    const user_id = localStorage.getItem('user_id') || null;
-    const currentSessionId = AppState.currentSessionId;
-
-    if (!currentSessionId) {
-        showError("errorSessionRequired", t("errorSessionRequired", "Sessão não encontrada. Inicie ou recarregue uma análise."));
-        return;
-    }
-
-    toggleSpinner(true);
-    updateElementVisibility(DOM.respostaUsuarioBox, false);
-    AppState.aguardandoRespostaUsuario = false;
-
-    const userResponseLogText = `(${t('responseToSupervisorSuffix', 'Resposta para Supervisor')}) ${userInput}`;
-    addToHistoryAndLog('usuario', userResponseLogText);
-
-    try {
-        console.log("Chamando Supervisor com resposta do usuário...");
-        const contextForSupervisor = AppState.historicoConversa;
-        const supervisorPrompt = `${contextForSupervisor}\n\n---\nSupervisor, por favor, considere a última resposta do usuário e continue a análise ou forneça uma resposta final. Se precisar de mais informações, use '[PEDIDO_INFO]'.`;
-        const supervisorNewResponse = await callBotAPI("supervisor", supervisorPrompt, currentSessionId, user_id);
-        console.log("Supervisor respondeu com sucesso:", supervisorNewResponse.substring(0, 50) + "...");
-
-        AppState.ultimaMensagemSupervisor = supervisorNewResponse;
-        addToHistoryAndLog('supervisor', supervisorNewResponse);
-
-        showFinalResponse(supervisorNewResponse);
-        updateElementVisibility(DOM.downloadPdfBtn, true);
-        if (DOM.respostaUsuarioInput) DOM.respostaUsuarioInput.value = "";
-
-        checkIfSupervisorNeedsInput(supervisorNewResponse);
-    } catch (err) {
-        console.error("Erro ao responder ao supervisor:", err);
-    } finally {
-        toggleSpinner(false);
-    }
-}
-
 function setupEventListeners() {
-    const t = i18nInstance.t.bind(i18nInstance);
+    const t = i18nInstance && i18nInstance.t ? i18nInstance.t.bind(i18nInstance) : fallbackT;
     DOM.themeToggle?.addEventListener('click', toggleTheme);
-    DOM.languageSelect?.addEventListener('change', (e) => changeLanguage(e.target.value));
+    DOM.languageSelect?.addEventListener('click', () => {
+        const currentLang = AppState.currentLanguage || 'pt';
+        const newLang = currentLang === 'pt' ? 'en' : 'pt';
+        i18nInstance.changeLanguage(newLang, (err) => {
+            if (err) return console.error('Erro ao mudar idioma:', err);
+            AppState.currentLanguage = newLang;
+            updateContent(DOM);
+        });
+    });
 
     DOM.caseForm?.addEventListener('submit', (event) => {
         event.preventDefault();
         const userInput = DOM.entradaUsuario?.value.trim();
         if (!userInput) {
-            showError('errorCaseRequired', t('errorCaseRequired', 'Por favor, descreva o caso.'));
-            return;
-        }
-        if (AppState.aguardandoRespostaUsuario) {
-            console.warn("Envio de novo caso bloqueado: Aguardando resposta do usuário.");
-            showError("errorInputBlocked", t("errorInputBlocked", "Responda à solicitação do supervisor antes de enviar um novo caso."));
+            showError('errorCaseRequired', t('errorCaseRequired', 'Por favor, descreva o caso ou forneça a informação solicitada.'));
             return;
         }
         mainCaseFlow(userInput);
     });
 
-    DOM.manualActionButtons?.forEach(button => {
-        button.addEventListener('click', () => {
-            if (AppState.aguardandoRespostaUsuario) {
-                console.warn("Ação manual bloqueada: Aguardando resposta do usuário.");
-                showError("errorActionBlocked", t("errorActionBlocked", "Responda ao supervisor antes de continuar."));
-                return;
-            }
-            const role = button.getAttribute('data-bot-role');
-            handleManualBotExecution(role);
-        });
-    });
-
-    DOM.filterSelect?.addEventListener('change', (e) => {
-        AppState.filtroAtual = e.target.value;
-        renderLogs();
-    });
-
     DOM.clearLogsBtn?.addEventListener('click', handleClearLogs);
     DOM.exportLogsBtn?.addEventListener('click', exportLogs);
     DOM.downloadPdfBtn?.addEventListener('click', downloadConversationAsPdf);
-    DOM.respondSupervisorBtn?.addEventListener('click', handleSupervisorResponse);
 
     const logoutLink = document.getElementById('logout-link');
     if (logoutLink) {
@@ -423,6 +347,15 @@ function setupEventListeners() {
         });
     } else {
         console.warn("Elemento de logout #logout-link não encontrado.");
+    }
+
+    const toggleUser = document.getElementById('toggle-user');
+    if (toggleUser) {
+        toggleUser.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+    } else {
+        console.warn("Botão 'Perfil do Cliente' (#toggle-user) não encontrado.");
     }
 
     console.log("Event listeners configurados.");
@@ -438,6 +371,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    // Definir t fora do try com fallback
+    const t = i18nInstance && i18nInstance.t ? i18nInstance.t.bind(i18nInstance) : fallbackT;
+
     try {
         initializeDOM();
         if (!DOM.logsIndividuais) {
@@ -451,7 +387,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         setupEventListeners();
 
-        const t = i18nInstance.t.bind(i18nInstance);
         const cameFrom = sessionStorage.getItem('cameFrom');
         console.log(`Origem da navegação (cameFrom): ${cameFrom}`);
         const backButton = document.getElementById('back-button');
@@ -459,9 +394,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (cameFrom === 'client-sessions') {
                 const clientId = sessionStorage.getItem('cameFromClientId');
                 const clientName = sessionStorage.getItem('cameFromClientName');
+                const attendanceId = sessionStorage.getItem('selectedAttendanceId');
                 if (clientId && clientName) {
                     backButton.href = `client-sessions.html?clientId=${encodeURIComponent(clientId)}&clientName=${encodeURIComponent(clientName)}`;
                     console.log(`Botão 'Voltar' configurado para: ${backButton.href}`);
+                    // Preencher informações da sidebar
+                    const clientInfo = document.getElementById('client-info');
+                    const attendanceInfo = document.getElementById('attendance-info');
+                    if (clientInfo && attendanceInfo) {
+                        clientInfo.innerHTML = `${t('client', 'Cliente')}: <strong>${clientName}</strong>`;
+                        attendanceInfo.innerHTML = `${t('attendance', 'Atendimento')}: <strong>${attendanceId || 'Não especificado'}</strong>`;
+                    }
                 } else {
                     console.warn("clientId ou clientName não encontrados no sessionStorage. Voltando para clients.html.");
                     backButton.href = 'clients.html';
@@ -479,22 +422,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const selectedClientName = sessionStorage.getItem('selectedClientName');
         const selectedAttendanceDescription = sessionStorage.getItem('selectedAttendanceDescription');
 
-        // Exibir descrição do atendimento imediatamente
-        const caseDescriptionElement = document.getElementById('caseDescription');
-        if (caseDescriptionElement && selectedAttendanceDescription) {
-            console.log(`Exibindo descrição do atendimento: ${selectedAttendanceDescription.substring(0, 50)}...`);
-            caseDescriptionElement.textContent = selectedAttendanceDescription;
-            caseDescriptionElement.classList.remove('d-none');
-        } else {
-            console.warn('Elemento #caseDescription não encontrado ou descrição ausente.');
-            if (!caseDescriptionElement) {
-                console.warn('Verifique se o elemento com ID "caseDescription" existe em chat.html.');
-            }
-            if (!selectedAttendanceDescription) {
-                console.warn('Nenhuma descrição de atendimento encontrada no sessionStorage.');
-            }
-        }
-
         if (selectedClientId) {
             console.log(`Cliente selecionado encontrado: ${selectedClientName} (ID: ${selectedClientId}). Preparando para nova análise.`);
             sessionStorage.removeItem('selectedClientId');
@@ -508,9 +435,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             AppState.pendingClientId = selectedClientId;
             AppState.pendingClientName = selectedClientName;
 
+            const clientInfo = document.getElementById('client-info');
+            const attendanceInfo = document.getElementById('attendance-info');
+            const attendanceId = sessionStorage.getItem('selectedAttendanceId');
+            if (clientInfo && attendanceInfo) {
+                clientInfo.innerHTML = `${t('client', 'Cliente')}: <strong>${selectedClientName}</strong>`;
+                attendanceInfo.innerHTML = `${t('attendance', 'Atendimento')}: <strong>${attendanceId || 'Não especificado'}</strong>`;
+            }
+
             if (selectedAttendanceDescription) {
                 console.log(`Descrição do atendimento encontrada: ${selectedAttendanceDescription.substring(0, 50)}...`);
-                sessionStorage.removeItem selectedAttendanceDescription');
+                sessionStorage.removeItem('selectedAttendanceDescription');
                 mainCaseFlow(selectedAttendanceDescription);
             } else if (DOM.entradaUsuario) {
                 DOM.entradaUsuario.value = '';

@@ -1,4 +1,5 @@
-// frontend/js/client-sessions.js
+// client-sessions.js
+
 import { getClientAttendances, getAttendanceSessions, fetchAttendance } from './api.js';
 import { SESSION_ID_STORAGE_KEY } from './state.js';
 import { initializeI18n, i18nInstance, getT } from './i18n.js';
@@ -7,7 +8,7 @@ import { DOM, initializeDOM } from './dom-elements.js';
 const pageTitle = document.getElementById('page-title');
 const loadingIndicator = document.getElementById('sessions-loading');
 const errorIndicator = document.getElementById('sessions-error');
-const noSessionsMessage = document.getElementById('sessions-message');
+const noSessionsMessage = document.getElementById('no-sessions-message');
 const messageDiv = document.getElementById('sessions-message');
 const accordion = document.getElementById('attendances-accordion');
 const addAttendanceButton = document.getElementById('add-attendance-button');
@@ -56,11 +57,11 @@ function formatTimestamp(timestamp) {
 function escapeHtml(unsafe) {
     if (unsafe == null) return '';
     return String(unsafe)
-        .replace(/&/g, "&")
-        .replace(/</g, "<")
-        .replace(/>/g, ">")
-        .replace(/"/g, "")
-        .replace(/'/g, "'");
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 async function fetchAndRenderClientAttendances(clientId, clientName) {
@@ -110,8 +111,10 @@ async function fetchAndRenderClientAttendances(clientId, clientName) {
                     <div id="collapse-${index}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}" aria-labelledby="heading-${index}" data-bs-parent="#attendances-accordion">
                         <div class="accordion-body">
                             <p><strong>${t('description', 'Descrição')}:</strong> ${escapeHtml(attendance.description)}</p>
+                            <p><strong>${t('purpose', 'Propósito')}:</strong> ${escapeHtml(attendance.purpose || 'Não especificado')}</p>
+                            <p><strong>${t('purposeDetail', 'Detalhes do Propósito')}:</strong> ${escapeHtml(attendance.purpose_detail || '')}</p>
                             <div class="mb-2">
-                                <button class="btn btn-sm btn-primary start-analysis-btn" data-attendance-id="${escapeHtml(attendance.attendance_id)}">${t('startAnalysis', 'Iniciar Análise')}</button>
+                                <button class="btn btn-sm btn-primary start-analysis-btn" data-attendance-id="${escapeHtml(attendance.attendance_id)}" data-description="${escapeHtml(attendance.description)}" data-purpose="${escapeHtml(attendance.purpose || '')}" data-purpose-detail="${escapeHtml(attendance.purpose_detail || '')}">${t('startAnalysis', 'Iniciar Análise')}</button>
                             </div>
                             <div id="sessions-${index}" class="sessions-list">
                                 <div class="text-center">
@@ -193,6 +196,8 @@ function handleLoadSession(event, sessionId) {
     sessionStorage.removeItem('selectedClientName');
     sessionStorage.removeItem('selectedAttendanceId');
     sessionStorage.removeItem('selectedAttendanceDescription');
+    sessionStorage.removeItem('selectedPurpose');
+    sessionStorage.removeItem('selectedPurposeDetail');
     localStorage.setItem(SESSION_ID_STORAGE_KEY, sessionId);
     sessionStorage.setItem('cameFrom', 'client-sessions');
 
@@ -245,7 +250,8 @@ function handleStartAnalysis(event, attendanceId) {
         sessionStorage.setItem('selectedClientName', clientName);
         sessionStorage.setItem('selectedAttendanceId', attendanceId);
         sessionStorage.setItem('selectedAttendanceDescription', attendance.description);
-        localStorage.removeItem(SESSION_ID_STORAGE_KEY);
+        sessionStorage.setItem('selectedPurpose', attendance.purpose || 'Não especificado');
+        sessionStorage.setItem('selectedPurposeDetail', attendance.purpose_detail || '');
 
         sessionStorage.setItem('cameFrom', 'client-sessions');
         if (clientId) sessionStorage.setItem('cameFromClientId', clientId);

@@ -293,13 +293,19 @@ export async function addClient(name, cpf, dob) {
     }
 }
 
-export async function addAttendance(clientId, description) {
+export async function addAttendance(clientId, description, purpose, purposeDetail) {
     const t = getT();
     console.log(`Tentando adicionar atendimento para cliente ID: ${clientId}`);
     const headers = createAuthHeaders();
     if (!headers['Authorization']) throw new Error(t('authTokenNotFound', 'Token de autenticação não encontrado.'));
 
-    const body = { client_id: clientId, description };
+    const body = {
+        client_id: clientId,
+        description,
+        purpose,
+        purpose_detail: purposeDetail
+    };
+
     try {
         const response = await fetch(`${API_BASE_URL}/attendances`, {
             method: 'POST',
@@ -314,6 +320,7 @@ export async function addAttendance(clientId, description) {
         throw err;
     }
 }
+
 
 /**
  * Busca a lista de atendimentos para um cliente específico.

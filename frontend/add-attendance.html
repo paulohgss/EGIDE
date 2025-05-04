@@ -25,6 +25,22 @@
                         <label for="attendance-description" class="form-label" data-i18n="description">Descrição do Atendimento</label>
                         <textarea class="form-control" id="attendance-description" rows="5" placeholder="Descreva o atendimento (ex.: Consulta inicial, CID, detalhes do caso)" required></textarea>
                     </div>
+                    <div class="form-group">
+                        <label for="clientPurpose">O que o cliente deseja?</label>
+                        <select id="clientPurpose" class="form-control" required>
+                          <option value="">Selecione uma opção</option>
+                          <option value="Dúvida">Dúvida</option>
+                          <option value="Reclamação">Reclamação</option>
+                          <option value="Solicitação de benefício">Solicitação de benefício</option>
+                          <option value="Outro">Outro</option>
+                        </select>
+                      </div>
+                      
+                      <div class="form-group">
+                        <label for="clientPurposeDetail">Descreva com suas palavras:</label>
+                        <textarea id="clientPurposeDetail" class="form-control" rows="2" required></textarea>
+                      </div>
+
                     <button type="submit" class="btn btn-primary" data-i18n="addAttendanceButton">Cadastrar Atendimento</button>
                 </form>
             </div>

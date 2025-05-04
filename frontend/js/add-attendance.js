@@ -1,21 +1,51 @@
-// frontend/js/add-attendance.js
+// add-attendance.js
+
 import { initializeI18n, i18nInstance, getT, escapeHtml } from './i18n.js';
 import { DOM, initializeDOM } from './dom-elements.js';
 import { addAttendance } from './api.js';
 
 function showMessage(message, isSuccess = false) {
-    if (DOM.attendanceMessage) {
-        DOM.attendanceMessage.textContent = message;
-        DOM.attendanceMessage.classList.remove('d-none', isSuccess ? 'alert-danger' : 'alert-success');
-        DOM.attendanceMessage.classList.add(isSuccess ? 'alert-success' : 'alert-danger');
+    const attendanceMessage = document.getElementById('attendance-message');
+    if (attendanceMessage) {
+        attendanceMessage.textContent = message;
+        attendanceMessage.classList.remove('d-none', isSuccess ? 'alert-danger' : 'alert-success');
+        attendanceMessage.classList.add(isSuccess ? 'alert-success' : 'alert-danger');
+    } else {
+        console.warn('Elemento #attendance-message não encontrado para exibir mensagem.');
     }
 }
 
 function clearMessage() {
-    if (DOM.attendanceMessage) {
-        DOM.attendanceMessage.textContent = '';
-        DOM.attendanceMessage.classList.add('d-none');
+    const attendanceMessage = document.getElementById('attendance-message');
+    if (attendanceMessage) {
+        attendanceMessage.textContent = '';
+        attendanceMessage.classList.add('d-none');
     }
+}
+
+function validateForm() {
+    const t = getT();
+    const description = document.getElementById('attendance-description')?.value.trim();
+    const purpose = document.getElementById('clientPurpose')?.value;
+    const purposeDetail = document.getElementById('clientPurposeDetail')?.value.trim();
+
+    if (!description) {
+        showMessage(t('errorDescriptionRequired', 'Por favor, insira a descrição do atendimento.'), false);
+        return false;
+    }
+    if (!purpose) {
+        showMessage(t('errorPurposeRequired', 'Por favor, selecione o propósito do atendimento.'), false);
+        return false;
+    }
+    if (purpose === 'Outro' && !purposeDetail) {
+        showMessage(t('errorPurposeDetailRequired', 'Por favor, descreva o propósito com suas palavras.'), false);
+        return false;
+    }
+
+    // Salvar no sessionStorage para uso em chat.js
+    sessionStorage.setItem('selectedPurpose', purpose);
+    sessionStorage.setItem('selectedPurposeDetail', purposeDetail);
+    return true;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -28,8 +58,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    // Inicializar i18n fora do bloco try para garantir que t esteja definido
+    let t = () => 'Erro: i18n não inicializado';
     try {
-        // Inicializar i18n primeiro
         console.log('add-attendance.js: Inicializando i18n...');
         await initializeI18n();
         if (!i18nInstance || typeof i18nInstance.t !== 'function') {
@@ -37,10 +68,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             throw new Error('i18next não está inicializado corretamente.');
         }
         console.log('add-attendance.js: i18n inicializado com sucesso.');
+        t = getT();
+    } catch (err) {
+        console.error('add-attendance.js: Erro ao inicializar i18n:', err);
+        showMessage('Erro ao carregar configurações de idioma.', false);
+        return;
+    }
 
-        const t = getT();
-
-        // Verificar clientId após inicializar i18n
+    try {
+        // Verificar clientId
         const urlParams = new URLSearchParams(window.location.search);
         const clientId = urlParams.get('clientId');
         const clientName = urlParams.get('clientName') || 'Cliente';
@@ -57,12 +93,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Inicializar DOM
         console.log('add-attendance.js: Inicializando DOM...');
         initializeDOM();
-        if (!DOM.pageTitle || !DOM.attendanceForm || !DOM.attendanceDescription || !DOM.attendanceMessage) {
+
+        // Verificar elementos do DOM manualmente
+        DOM.pageTitle = document.getElementById('page-title');
+        DOM.attendanceForm = document.getElementById('attendance-form');
+        DOM.attendanceDescription = document.getElementById('attendance-description');
+        DOM.attendanceMessage = document.getElementById('attendance-message');
+        DOM.clientPurpose = document.getElementById('clientPurpose');
+        DOM.clientPurposeDetail = document.getElementById('clientPurposeDetail');
+
+        if (!DOM.pageTitle || !DOM.attendanceForm || !DOM.attendanceDescription || !DOM.attendanceMessage || !DOM.clientPurpose || !DOM.clientPurposeDetail) {
             console.error('add-attendance.js: Elementos do DOM ausentes:', {
                 pageTitle: !!DOM.pageTitle,
                 attendanceForm: !!DOM.attendanceForm,
                 attendanceDescription: !!DOM.attendanceDescription,
-                attendanceMessage: !!DOM.attendanceMessage
+                attendanceMessage: !!DOM.attendanceMessage,
+                clientPurpose: !!DOM.clientPurpose,
+                clientPurposeDetail: !!DOM.clientPurposeDetail
             });
             throw new Error('Falha ao inicializar elementos do DOM.');
         }
@@ -71,9 +118,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         DOM.pageTitle.textContent = `${t('addAttendance', 'Adicionar Atendimento')} - ${escapeHtml(clientName)}`;
 
         // Configurar botão "Voltar"
-        if (DOM.backButton) {
-            DOM.backButton.href = `client-sessions.html?clientId=${encodeURIComponent(clientId)}&clientName=${encodeURIComponent(clientName)}`;
-            console.log(`add-attendance.js: Botão 'Voltar' configurado para: ${DOM.backButton.href}`);
+        const backButton = document.getElementById('back-button');
+        if (backButton) {
+            backButton.href = `client-sessions.html?clientId=${encodeURIComponent(clientId)}&clientName=${encodeURIComponent(clientName)}`;
+            console.log(`add-attendance.js: Botão 'Voltar' configurado para: ${backButton.href}`);
         }
 
         // Aplicar traduções dinâmicas
@@ -89,12 +137,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             event.preventDefault();
             clearMessage();
 
-            const description = DOM.attendanceDescription.value.trim();
-            if (!description) {
-                console.warn('add-attendance.js: Descrição vazia.');
-                showMessage(t('descriptionRequired', 'A descrição do atendimento é obrigatória.'), false);
+            if (!validateForm()) {
+                console.warn('add-attendance.js: Validação do formulário falhou.');
                 return;
             }
+
+            const description = DOM.attendanceDescription.value.trim();
+            const purpose = DOM.clientPurpose.value;
+            const purposeDetail = DOM.clientPurposeDetail.value.trim();
 
             const submitButton = DOM.attendanceForm.querySelector('button[type="submit"]');
             if (submitButton) {
@@ -106,11 +156,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             try {
-                console.log('add-attendance.js: Enviando atendimento para a API...', { clientId, description });
-                await addAttendance(clientId, description);
+                console.log('add-attendance.js: Enviando atendimento para a API...', { clientId, description, purpose, purposeDetail });
+                await addAttendance(clientId, description, purpose, purposeDetail);
                 console.log('add-attendance.js: Atendimento cadastrado com sucesso.');
                 showMessage(t('attendanceAddedSuccess', 'Atendimento cadastrado com sucesso!'), true);
-                DOM.attendanceDescription.value = ''; // Limpar o campo
+                DOM.attendanceDescription.value = '';
+                DOM.clientPurpose.value = '';
+                DOM.clientPurposeDetail.value = '';
 
                 // Redirecionar após 1,5 segundos
                 setTimeout(() => {
@@ -131,7 +183,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('add-attendance.js: Página de adicionar atendimento carregada para cliente:', clientName, '(ID:', clientId, ')');
     } catch (err) {
         console.error('add-attendance.js: Erro ao inicializar a página:', err, err.stack);
-        const t = getT();
-        showMessage(t('errorAppInit', 'Erro ao carregar a página de atendimento.'), false);
+        showMessage('Erro ao carregar a página de atendimento.', false);
     }
 });

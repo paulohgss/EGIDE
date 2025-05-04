@@ -1,4 +1,3 @@
-// frontend/js/ui.js
 import { DOM } from './dom-elements.js';
 import { AppState } from './state.js';
 import { i18nInstance } from './i18n.js';
@@ -51,7 +50,6 @@ export function showError(messageKey, fallbackMessage, options = {}) {
   const status = options.status;
   const backendMessage = fallbackMessage || messageKey;
 
-  // Verificar se i18nInstance está inicializado
   const isI18nReady = i18nInstance && typeof i18nInstance.exists === 'function' && typeof i18nInstance.t === 'function';
   let message;
   if (isI18nReady) {
@@ -142,16 +140,20 @@ export function clearProgress() {
  * @param {boolean} show True para mostrar o spinner, false para esconder.
  */
 export function toggleSpinner(show) {
-  DOM.submitSpinner?.classList.toggle('d-none', !show);
-  if (DOM.submitButton) DOM.submitButton.disabled = show;
-  DOM.manualActionButtons?.forEach(btn => btn.disabled = show);
-  if (DOM.respondSupervisorBtn) DOM.respondSupervisorBtn.disabled = show;
+  if (DOM.submitButton) {
+    DOM.submitButton.disabled = show;
+    if (show) {
+      DOM.submitButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`;
+    } else {
+      DOM.submitButton.innerHTML = `<i class="fas fa-arrow-right"></i>`;
+    }
+  }
 }
 
 /**
  * Alterna a visibilidade de um elemento adicionando/removendo a classe 'd-none'.
  * @param {HTMLElement | null} element O elemento do DOM.
- * @param {boolean} show True para mostrar, false para esconder.
+ * @param {boolean} isVisible True para mostrar, false para esconder.
  */
 export function updateElementVisibility(element, isVisible) {
   if (!element) return;
@@ -167,35 +169,10 @@ export function updateElementVisibility(element, isVisible) {
  */
 export function resetUIForNewCase() {
   if (DOM.entradaUsuario) DOM.entradaUsuario.value = '';
-  if (DOM.respostaFinal) DOM.respostaFinal.textContent = '';
-  if (DOM.respostaUsuarioInput) DOM.respostaUsuarioInput.value = '';
 
-  updateElementVisibility(DOM.respostaFinal, false);
   updateElementVisibility(DOM.downloadPdfBtn, false);
-  updateElementVisibility(DOM.respostaUsuarioBox, false);
-  // Não ocultar #logsIndividuais para preservar logs existentes
-  if (DOM.errorMessage) DOM.errorMessage.classList.add('d-none');
-
-  if (DOM.filterSelect) DOM.filterSelect.value = "ALL";
 
   toggleSpinner(false);
-}
-
-/**
- * Mostra a resposta final na UI, formatada e escapada.
- * @param {string} responseText O texto da resposta final.
- */
-export function showFinalResponse(responseText) {
-  if (DOM.respostaFinal) {
-    const isI18nReady = i18nInstance && typeof i18nInstance.t === 'function';
-    let prefix = "✅ Resposta Final";
-    if (isI18nReady) {
-      const t = i18nInstance.t.bind(i18nInstance);
-      prefix = t("finalResponsePrefix", "✅ Resposta Final");
-    }
-    DOM.respostaFinal.innerHTML = `<strong>${prefix}:</strong><pre class="log-text">${escapeHtml(responseText)}</pre>`;
-    updateElementVisibility(DOM.respostaFinal, true);
-  }
 }
 
 /**
@@ -209,6 +186,6 @@ export function escapeHtml(unsafe) {
       .replace(/&/g, "&")
       .replace(/</g, "<")
       .replace(/>/g, ">")
-      .replace(/"/g, "&quot;") // Corrigido: "" -> "&quot;"
-      .replace(/'/g, "&#39;");
+      .replace(/"/g, "")
+      .replace(/'/g, "'");
 }

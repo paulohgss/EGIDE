@@ -4,60 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
     <link rel="stylesheet" href="styles.css">
     <title data-i18n="chatTitle">Chat de Análise</title>
 </head>
 <body>
-    <div class="container my-4">
-        <header class="d-flex justify-content-between align-items-center mb-4">
-            <h1 id="page-title" data-i18n="chatTitle">Chat de Análise</h1>
+    <div class="chat-wrapper">
+        <header class="d-flex justify-content-between align-items-center p-3 border-bottom">
+            <h1 id="page-title" class="h4 mb-0" data-i18n="chatTitle">Chat de Análise</h1>
             <div>
-                <a href="#" id="back-button" class="btn btn-secondary" data-i18n="backToSessions">Voltar</a>
-                <button id="logout-link" class="btn btn-danger ms-2" data-i18n="logout">Sair</button>
+                <button id="theme-toggle" class="btn btn-outline-secondary me-2" data-i18n="themeToggle">Alterar Tema</button>
+                <select id="language-select" class="form-select d-inline-block w-auto me-2">
+                    <option value="pt">Português</option>
+                    <option value="en">English</option>
+                </select>
+                <a id="back-button" href="index.html" class="btn btn-secondary me-2" data-i18n="backToSessions">Voltar</a>
+                <a id="logout-link" href="#" class="btn btn-danger" data-i18n="logout">Sair</a>
             </div>
         </header>
 
-        <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
-
-        <div class="card shadow-sm mb-4">
-            <div class="card-header" data-i18n="caseDetails">Detalhes do Caso</div>
-            <div class="card-body">
-                <div id="caseDescription" class="alert alert-info d-none"></div>
-            </div>
-        </div>
-
-        <div class="card shadow-sm mb-4">
-            <div class="card-header" data-i18n="chatMessages">Mensagens</div>
-            <div class="card-body">
-                <div id="logsIndividuais" class="mb-3"></div>
-                <form id="caseForm">
-                    <div class="mb-3">
-                        <textarea class="form-control" id="entradaUsuario" rows="3" placeholder="Digite sua mensagem..." required></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary" data-i18n="sendMessage">Enviar</button>
+        <div class="chat-main">
+            <div id="error-message" class="alert alert-danger d-none" role="alert"></div>
+            <div id="caseDescription" class="chat-info d-none"></div>
+            <div id="logsIndividuais" class="chat-container"></div>
+            <div class="chat-input-container p-3">
+                <form id="caseForm" class="d-flex align-items-center">
+                    <textarea class="form-control me-2" id="entradaUsuario" rows="1" placeholder="Digite o caso ou a resposta aqui..." required></textarea>
+                    <button type="submit" id="submitButton" class="btn btn-primary" title="Enviar">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
                 </form>
             </div>
-        </div>
-
-        <div class="card shadow-sm mb-4">
-            <div class="card-header" data-i18n="manualActions">Ações Manuais</div>
-            <div class="card-body">
-                <button class="btn btn-secondary me-2" data-bot-role="redator" data-i18n="manualRedator">Chamar Redator</button>
-                <button class="btn btn-secondary me-2" data-bot-role="medico" data-i18n="manualMedico">Chamar Médico</button>
-                <button class="btn btn-secondary me-2" data-bot-role="estrategista" data-i18n="manualEstrategista">Chamar Estratégista</button>
-                <button class="btn btn-secondary" data-bot-role="supervisor" data-i18n="manualSupervisor">Chamar Supervisor</button>
-            </div>
-        </div>
-
-        <div class="card shadow-sm mb-4">
-            <div class="card-header" data-i18n="finalResponse">Resposta Final</div>
-            <div class="card-body">
-                <div id="respostaFinal" class="alert alert-success d-none"></div>
-                <div id="respostaUsuarioBox" class="d-none">
-                    <textarea class="form-control mb-2" id="respostaUsuarioInput" rows="3" placeholder="Digite a informação solicitada aqui..."></textarea>
-                    <button id="respondSupervisorBtn" class="btn btn-primary" data-i18n="respondSupervisor">Enviar Resposta</button>
-                </div>
-                <button id="downloadPdfBtn" class="btn btn-info d-none" data-i18n="downloadPdf">Baixar PDF</button>
+            <div class="chat-actions p-3 border-top d-flex justify-content-end">
+                <button id="clearLogsBtn" class="btn btn-secondary me-2" data-i18n="clearLogs">Limpar Logs</button>
+                <button id="exportLogsBtn" class="btn btn-secondary me-2" data-i18n="exportLogs">Exportar Logs</button>
+                <button id="downloadPdfBtn" class="btn btn-primary d-none" data-i18n="downloadPdf">Baixar PDF</button>
             </div>
         </div>
     </div>
@@ -65,7 +47,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/i18next@23.11.5/dist/umd/i18next.min.js"></script>
     <script type="module" src="js/i18n.js"></script>
-    <script type="module" src="js/logs.js"></script>
     <script type="module" src="js/chat.js"></script>
 </body>
 </html>

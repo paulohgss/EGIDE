@@ -1,3 +1,5 @@
+// i18n.js
+
 import { DEFAULT_LANGUAGE } from './config.js';
 import { AppState } from './state.js';
 
@@ -131,7 +133,9 @@ const resources = {
             redator: "Redator",
             medico: "Médico",
             estrategista: "Estrategista",
-            supervisor: "Supervisor"
+            supervisor: "Supervisor",
+            purpose: "Proposito",
+            purposeDetail: "Detalhes do Proposito",
         }
     },
     en: {
@@ -158,6 +162,7 @@ const resources = {
             errorI18nInit: "Error loading language settings.",
             backToClients: "Back to Clients",
             addAttendance: "Add Attendance",
+            
 
             // api.js
             authTokenNotFound: "Authentication token not found.",
